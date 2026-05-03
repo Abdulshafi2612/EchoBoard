@@ -1,0 +1,12 @@
+package com.echoboard.exception;
+
+public enum ErrorCode {
+    EMAIL_ALREADY_EXISTS,
+    INVALID_CREDENTIALS,
+    INTERNAL_SERVER_ERROR,
+    RESOURCE_NOT_FOUND,
+    VALIDATION_ERROR,
+    UNAUTHORIZED,
+    FORBIDDEN,
+    INVALID_REFRESH_TOKEN
+}
