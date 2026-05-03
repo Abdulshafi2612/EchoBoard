@@ -1,0 +1,13 @@
+package com.echoboard;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class EchoBoardApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(EchoBoardApplication.class, args);
+    }
+
+}
