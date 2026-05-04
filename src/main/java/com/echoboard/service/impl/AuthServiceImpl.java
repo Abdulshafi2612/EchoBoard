@@ -1,6 +1,7 @@
 package com.echoboard.service.impl;
 
 import com.echoboard.dto.auth.*;
+import com.echoboard.dto.user.UserProfileResponse;
 import com.echoboard.entity.User;
 import com.echoboard.enums.UserRole;
 import com.echoboard.exception.AppException;
@@ -9,6 +10,7 @@ import com.echoboard.mapper.UserMapper;
 import com.echoboard.repository.UserRepository;
 import com.echoboard.security.JwtService;
 import com.echoboard.service.AuthService;
+import com.echoboard.service.CurrentUserService;
 import com.echoboard.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final CurrentUserService currentUserService;
 
     @Override
     public RegisterResponse register(RegisterRequest request) {
@@ -42,7 +45,8 @@ public class AuthServiceImpl implements AuthService {
         }
         User user = userMapper.RegisterRequestToUser(request);
         user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        String passwordHash = passwordEncoder.encode(request.getPassword());
+        user.setPasswordHash(passwordHash);
         user.setRole(UserRole.PRESENTER);
         user.setEnabled(true);
         User savedUser = userRepository.save(user);
@@ -81,5 +85,11 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenService.revokeToken(token);
 
         return new LogoutResponse("Logged out successfully");
+    }
+
+    @Override
+    public UserProfileResponse getUserProfileResponse() {
+        User user = currentUserService.getCurrentUser();
+        return userMapper.userToUserProfileResponse(user);
     }
 }

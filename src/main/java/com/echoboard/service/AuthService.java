@@ -1,6 +1,8 @@
 package com.echoboard.service;
 
 import com.echoboard.dto.auth.*;
+import com.echoboard.dto.user.UserProfileResponse;
+import com.echoboard.security.CustomUserDetails;
 
 public interface AuthService {
 
@@ -10,4 +12,5 @@ public interface AuthService {
 
     LogoutResponse logout(LogoutRequest request);
 
+    UserProfileResponse getUserProfileResponse();
 }
