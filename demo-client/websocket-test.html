@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EchoBoard WebSocket Demo</title>
+    <title>EchoBoard Presence Demo</title>
 
     <style>
         body {
@@ -50,7 +50,7 @@
     </style>
 </head>
 <body>
-<h2>EchoBoard WebSocket Demo</h2>
+<h2>EchoBoard Presence Demo</h2>
 <div id="status">Disconnected</div>
 
 <div class="section">
@@ -60,13 +60,7 @@
 </div>
 
 <div class="section">
-    <h3>Test Message</h3>
-    <input id="messageInput" placeholder="Type a message">
-    <button onclick="sendTestMessage()">Send Test Message</button>
-</div>
-
-<div class="section">
-    <h3>Presence Demo</h3>
+    <h3>Presence</h3>
     <input id="sessionIdInput" placeholder="Session ID" value="5">
     <button onclick="joinPresence()">Join Presence</button>
     <button onclick="leavePresence()">Leave Presence</button>
@@ -98,10 +92,6 @@
             connected = true;
             setStatus('Connected');
             addMessage('Connected to WebSocket');
-
-            stompClient.subscribe('/topic/test', function (message) {
-                addMessage('Test message received: ' + message.body);
-            });
         }, function (error) {
             connected = false;
             setStatus('Connection failed');
@@ -122,25 +112,6 @@
             setStatus('Disconnected');
             addMessage('Disconnected from WebSocket');
         });
-    }
-
-    function sendTestMessage() {
-        if (!connected) {
-            addMessage('Connect first before sending a test message');
-            return;
-        }
-
-        const messageInput = document.getElementById('messageInput');
-        const message = messageInput.value.trim();
-
-        if (message.length === 0) {
-            addMessage('Test message is empty');
-            return;
-        }
-
-        stompClient.send('/app/test', {}, message);
-        addMessage('Test message sent: ' + message);
-        messageInput.value = '';
     }
 
     function joinPresence() {
