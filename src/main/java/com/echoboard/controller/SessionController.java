@@ -64,4 +64,16 @@ public class SessionController {
         SessionResponse response =sessionService.endSession(id);
         return  ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/{id}/archive")
+    public ResponseEntity<SessionResponse> archiveSession(@PathVariable Long id) {
+        SessionResponse response = sessionService.archiveSession(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
+        sessionService.deleteSession(id);
+        return ResponseEntity.noContent().build();
+    }
 }

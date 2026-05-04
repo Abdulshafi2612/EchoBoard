@@ -19,4 +19,8 @@ public interface SessionService {
     SessionResponse startSession(Long id);
 
     SessionResponse endSession(Long id);
+
+    SessionResponse archiveSession(Long id);
+
+    void deleteSession(Long id);
 }

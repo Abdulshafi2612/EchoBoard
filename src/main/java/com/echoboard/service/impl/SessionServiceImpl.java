@@ -172,6 +172,57 @@ public class SessionServiceImpl implements SessionService {
         return sessionMapper.sessionToSessionResponse(endedSession);
     }
 
+    @Override
+    public SessionResponse archiveSession(Long id) {
+        User owner = currentUserService.getCurrentUser();
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"));
+        if (session.getStatus() == LIVE) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Live sessions cannot be archived"
+            );
+        }
+
+        if (session.getStatus() == ARCHIVED) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Session is already archived"
+            );
+        }
+
+        session.setStatus(ARCHIVED);
+
+        Session archivedSession = sessionRepository.save(session);
+        return sessionMapper.sessionToSessionResponse(archivedSession);    }
+
+    @Override
+    public void deleteSession(Long id) {
+        User owner = currentUserService.getCurrentUser();
+
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"
+                ));
+
+        if (session.getStatus() != SCHEDULED) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Only scheduled sessions can be deleted"
+            );
+        }
+
+        sessionRepository.delete(session);
+    }
+
     private String generateUniqueAccessCode() {
         String accessCode = AccessCodeGenerator.generateAccessCode();
         while (sessionRepository.existsByAccessCode(accessCode)) {
