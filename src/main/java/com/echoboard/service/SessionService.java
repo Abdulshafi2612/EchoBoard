@@ -10,4 +10,6 @@ public interface SessionService {
     SessionResponse createSession(CreateSessionRequest request);
 
     PageResponse<SessionResponse> getMySessions(Pageable pageable);
+
+    SessionResponse getSessionById(Long id);
 }

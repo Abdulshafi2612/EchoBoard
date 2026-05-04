@@ -36,4 +36,10 @@ public class SessionController {
         PageResponse<SessionResponse> response = sessionService.getMySessions(pageable);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SessionResponse> getSessionById(@PathVariable Long id) {
+        SessionResponse sessionResponse = sessionService.getSessionById(id);
+        return ResponseEntity.ok(sessionResponse);
+    }
 }

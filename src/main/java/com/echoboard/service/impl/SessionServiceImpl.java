@@ -5,6 +5,8 @@ import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.entity.Session;
 import com.echoboard.entity.User;
+import com.echoboard.exception.AppException;
+import com.echoboard.exception.ErrorCode;
 import com.echoboard.mapper.SessionMapper;
 import com.echoboard.repository.SessionRepository;
 import com.echoboard.service.CurrentUserService;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 import static com.echoboard.enums.SessionStatus.SCHEDULED;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -71,6 +74,17 @@ public class SessionServiceImpl implements SessionService {
                 sessionsPage.isLast()
         );
 
+    }
+
+    @Override
+    public SessionResponse getSessionById(Long id) {
+        User owner = currentUserService.getCurrentUser();
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"));
+        return sessionMapper.sessionToSessionResponse(session);
     }
 
     private String generateUniqueAccessCode() {
