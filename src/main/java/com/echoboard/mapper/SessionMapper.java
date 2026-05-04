@@ -2,6 +2,7 @@ package com.echoboard.mapper;
 
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
+import com.echoboard.dto.session.UpdateSessionRequest;
 import com.echoboard.entity.Session;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

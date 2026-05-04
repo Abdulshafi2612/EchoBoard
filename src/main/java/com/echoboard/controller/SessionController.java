@@ -3,6 +3,7 @@ package com.echoboard.controller;
 import com.echoboard.dto.common.PageResponse;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
+import com.echoboard.dto.session.UpdateSessionRequest;
 import com.echoboard.service.SessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,5 +42,14 @@ public class SessionController {
     public ResponseEntity<SessionResponse> getSessionById(@PathVariable Long id) {
         SessionResponse sessionResponse = sessionService.getSessionById(id);
         return ResponseEntity.ok(sessionResponse);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SessionResponse> updateSession(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateSessionRequest request
+    ) {
+        SessionResponse response = sessionService.updateSession(id, request);
+        return ResponseEntity.ok(response);
     }
 }

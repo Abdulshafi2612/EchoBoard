@@ -3,6 +3,7 @@ package com.echoboard.service.impl;
 import com.echoboard.dto.common.PageResponse;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
+import com.echoboard.dto.session.UpdateSessionRequest;
 import com.echoboard.entity.Session;
 import com.echoboard.entity.User;
 import com.echoboard.exception.AppException;
@@ -19,8 +20,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static com.echoboard.enums.SessionStatus.SCHEDULED;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static com.echoboard.enums.SessionStatus.*;
+import static com.echoboard.exception.ErrorCode.RESOURCE_NOT_FOUND;
+import static com.echoboard.exception.ErrorCode.VALIDATION_ERROR;
+import static org.springframework.http.HttpStatus.*;
 
 @Service
 @RequiredArgsConstructor
@@ -81,10 +84,45 @@ public class SessionServiceImpl implements SessionService {
         User owner = currentUserService.getCurrentUser();
         Session session = sessionRepository.findByIdAndOwner(id, owner)
                 .orElseThrow(() -> new AppException(
-                        ErrorCode.RESOURCE_NOT_FOUND,
+                        RESOURCE_NOT_FOUND,
                         NOT_FOUND,
                         "Session not found"));
         return sessionMapper.sessionToSessionResponse(session);
+    }
+
+    @Override
+    public SessionResponse updateSession(Long id, UpdateSessionRequest request) {
+        User owner = currentUserService.getCurrentUser();
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"));
+        if (session.getStatus() == ENDED || session.getStatus() == ARCHIVED) {
+            throw new AppException(ErrorCode.FORBIDDEN, FORBIDDEN, "Can't edit this session");
+        }
+
+        if (request.getTitle() != null && request.getTitle().isBlank()) {
+            throw new AppException(VALIDATION_ERROR, BAD_REQUEST, "Title must not be empty");
+        }
+
+        if (request.getTitle() != null) {
+            session.setTitle(request.getTitle());
+        }
+
+        if (request.getDescription() != null) {
+            session.setDescription(request.getDescription());
+        }
+
+        if (request.getModerationEnabled() != null) {
+            session.setModerationEnabled(request.getModerationEnabled());
+        }
+
+        if (request.getAnonymousAllowed() != null) {
+            session.setAnonymousAllowed(request.getAnonymousAllowed());
+        }
+        Session updatedSession = sessionRepository.save(session);
+        return sessionMapper.sessionToSessionResponse(updatedSession);
     }
 
     private String generateUniqueAccessCode() {
