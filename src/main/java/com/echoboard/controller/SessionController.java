@@ -26,7 +26,7 @@ public class SessionController {
             @Valid @RequestBody CreateSessionRequest request) {
 
         SessionResponse sessionResponse = sessionService.createSession(request);
-        return new ResponseEntity<>(sessionResponse, HttpStatus.CREATED);
+        return ResponseEntity.status(HttpStatus.CREATED).body(sessionResponse);
     }
 
     @GetMapping("/my")
@@ -60,7 +60,7 @@ public class SessionController {
     }
 
     @PatchMapping("/{id}/end")
-    public ResponseEntity<SessionResponse> ednSession(@PathVariable Long id) {
+    public ResponseEntity<SessionResponse> endSession(@PathVariable Long id) {
         SessionResponse response =sessionService.endSession(id);
         return  ResponseEntity.ok(response);
     }
