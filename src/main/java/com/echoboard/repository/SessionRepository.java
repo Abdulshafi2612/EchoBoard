@@ -13,6 +13,8 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     boolean existsByAccessCode(String accessCode);
 
+    Optional<Session> findByAccessCode(String accessCode);
+
     Page<Session> findByOwner(User owner, Pageable pageable);
 
     Optional<Session> findByIdAndOwner(Long id, User owner);
