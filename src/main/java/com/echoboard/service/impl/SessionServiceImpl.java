@@ -82,23 +82,13 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionResponse getSessionById(Long id) {
-        User owner = currentUserService.getCurrentUser();
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"));
+        Session session = getOwnedSessionOrThrow(id);
         return sessionMapper.sessionToSessionResponse(session);
     }
 
     @Override
     public SessionResponse updateSession(Long id, UpdateSessionRequest request) {
-        User owner = currentUserService.getCurrentUser();
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"));
+        Session session = getOwnedSessionOrThrow(id);
         if (session.getStatus() == ENDED || session.getStatus() == ARCHIVED) {
             throw new AppException(ErrorCode.FORBIDDEN, FORBIDDEN, "Can't edit this session");
         }
@@ -128,12 +118,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionResponse startSession(Long id) {
-        User owner = currentUserService.getCurrentUser();
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"));
+        Session session = getOwnedSessionOrThrow(id);
 
         if (session.getStatus() != SCHEDULED) {
             throw new AppException(
@@ -151,12 +136,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionResponse endSession(Long id) {
-        User owner = currentUserService.getCurrentUser();
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"));
+        Session session = getOwnedSessionOrThrow(id);
 
         if (session.getStatus() != LIVE) {
             throw new AppException(
@@ -174,12 +154,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public SessionResponse archiveSession(Long id) {
-        User owner = currentUserService.getCurrentUser();
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"));
+        Session session = getOwnedSessionOrThrow(id);
         if (session.getStatus() == LIVE) {
             throw new AppException(
                     INVALID_SESSION_STATUS,
@@ -199,18 +174,12 @@ public class SessionServiceImpl implements SessionService {
         session.setStatus(ARCHIVED);
 
         Session archivedSession = sessionRepository.save(session);
-        return sessionMapper.sessionToSessionResponse(archivedSession);    }
+        return sessionMapper.sessionToSessionResponse(archivedSession);
+    }
 
     @Override
     public void deleteSession(Long id) {
-        User owner = currentUserService.getCurrentUser();
-
-        Session session = sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"
-                ));
+        Session session = getOwnedSessionOrThrow(id);
 
         if (session.getStatus() != SCHEDULED) {
             throw new AppException(
@@ -229,5 +198,16 @@ public class SessionServiceImpl implements SessionService {
             accessCode = AccessCodeGenerator.generateAccessCode();
         }
         return accessCode;
+    }
+
+    private Session getOwnedSessionOrThrow(Long id) {
+        User owner = currentUserService.getCurrentUser();
+
+        return sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"
+                ));
     }
 }
