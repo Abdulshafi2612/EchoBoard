@@ -1,16 +1,17 @@
 package com.echoboard.controller;
 
+import com.echoboard.dto.common.PageResponse;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.service.SessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,5 +26,14 @@ public class SessionController {
 
         SessionResponse sessionResponse = sessionService.createSession(request);
         return new ResponseEntity<>(sessionResponse, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<PageResponse<SessionResponse>> getMySessions(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        PageResponse<SessionResponse> response = sessionService.getMySessions(pageable);
+        return ResponseEntity.ok(response);
     }
 }

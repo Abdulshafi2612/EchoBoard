@@ -1,5 +1,6 @@
 package com.echoboard.service.impl;
 
+import com.echoboard.dto.common.PageResponse;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.entity.Session;
@@ -10,7 +11,11 @@ import com.echoboard.service.CurrentUserService;
 import com.echoboard.service.SessionService;
 import com.echoboard.util.AccessCodeGenerator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 import static com.echoboard.enums.SessionStatus.SCHEDULED;
 
@@ -43,6 +48,29 @@ public class SessionServiceImpl implements SessionService {
         Session savedSession = sessionRepository.save(session);
 
         return sessionMapper.sessionToSessionResponse(savedSession);
+    }
+
+    @Override
+    public PageResponse<SessionResponse> getMySessions(Pageable pageable) {
+        User user = currentUserService.getCurrentUser();
+
+        Page<Session> sessionsPage = sessionRepository.findByOwner(user, pageable);
+
+        List<SessionResponse> content = sessionsPage
+                .getContent()
+                .stream()
+                .map(sessionMapper::sessionToSessionResponse)
+                .toList();
+
+        return new PageResponse<>(
+                content,
+                sessionsPage.getNumber(),
+                sessionsPage.getSize(),
+                sessionsPage.getTotalElements(),
+                sessionsPage.getTotalPages(),
+                sessionsPage.isLast()
+        );
+
     }
 
     private String generateUniqueAccessCode() {
