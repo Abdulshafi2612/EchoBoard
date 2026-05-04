@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EchoBoard WebSocket Demo</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        h2 {
+            margin-bottom: 8px;
+        }
+
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        input {
+            padding: 8px;
+            margin-right: 8px;
+            min-width: 220px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 4px;
+            cursor: pointer;
+        }
+
+        #status {
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        #messages {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+<h2>EchoBoard WebSocket Demo</h2>
+<div id="status">Disconnected</div>
+
+<div class="section">
+    <h3>Connection</h3>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+</div>
+
+<div class="section">
+    <h3>Test Message</h3>
+    <input id="messageInput" placeholder="Type a message">
+    <button onclick="sendTestMessage()">Send Test Message</button>
+</div>
+
+<div class="section">
+    <h3>Presence Demo</h3>
+    <input id="sessionIdInput" placeholder="Session ID" value="5">
+    <button onclick="joinPresence()">Join Presence</button>
+    <button onclick="leavePresence()">Leave Presence</button>
+</div>
+
+<div class="section">
+    <h3>Logs</h3>
+    <ul id="messages"></ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+<script>
+    let stompClient = null;
+    let connected = false;
+    let currentPresenceSubscription = null;
+
+    function connect() {
+        if (connected) {
+            addMessage('Already connected');
+            return;
+        }
+
+        const socket = new SockJS('http://localhost:8080/ws');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function () {
+            connected = true;
+            setStatus('Connected');
+            addMessage('Connected to WebSocket');
+
+            stompClient.subscribe('/topic/test', function (message) {
+                addMessage('Test message received: ' + message.body);
+            });
+        }, function (error) {
+            connected = false;
+            setStatus('Connection failed');
+            addMessage('Connection error: ' + error);
+        });
+    }
+
+    function disconnect() {
+        if (!connected || stompClient === null) {
+            addMessage('Not connected');
+            return;
+        }
+
+        stompClient.disconnect(function () {
+            connected = false;
+            stompClient = null;
+            currentPresenceSubscription = null;
+            setStatus('Disconnected');
+            addMessage('Disconnected from WebSocket');
+        });
+    }
+
+    function sendTestMessage() {
+        if (!connected) {
+            addMessage('Connect first before sending a test message');
+            return;
+        }
+
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value.trim();
+
+        if (message.length === 0) {
+            addMessage('Test message is empty');
+            return;
+        }
+
+        stompClient.send('/app/test', {}, message);
+        addMessage('Test message sent: ' + message);
+        messageInput.value = '';
+    }
+
+    function joinPresence() {
+        if (!connected) {
+            addMessage('Connect first before joining presence');
+            return;
+        }
+
+        const sessionId = document.getElementById('sessionIdInput').value.trim();
+
+        if (sessionId.length === 0) {
+            addMessage('Session ID is required');
+            return;
+        }
+
+        if (currentPresenceSubscription !== null) {
+            currentPresenceSubscription.unsubscribe();
+            currentPresenceSubscription = null;
+        }
+
+        const topic = '/topic/sessions/' + sessionId + '/presence';
+        const destination = '/app/sessions/' + sessionId + '/presence.join';
+
+        currentPresenceSubscription = stompClient.subscribe(topic, function (message) {
+            addMessage('Presence update: ' + message.body);
+        });
+
+        stompClient.send(destination, {}, '');
+        addMessage('Presence join sent for session ' + sessionId);
+    }
+
+    function leavePresence() {
+        if (!connected) {
+            addMessage('Connect first before leaving presence');
+            return;
+        }
+
+        const sessionId = document.getElementById('sessionIdInput').value.trim();
+
+        if (sessionId.length === 0) {
+            addMessage('Session ID is required');
+            return;
+        }
+
+        const destination = '/app/sessions/' + sessionId + '/presence.leave';
+
+        stompClient.send(destination, {}, '');
+        addMessage('Presence leave sent for session ' + sessionId);
+    }
+
+    function setStatus(text) {
+        document.getElementById('status').innerText = text;
+    }
+
+    function addMessage(text) {
+        const li = document.createElement('li');
+        li.innerText = text;
+        document.getElementById('messages').appendChild(li);
+    }
+</script>
+</body>
+</html>
