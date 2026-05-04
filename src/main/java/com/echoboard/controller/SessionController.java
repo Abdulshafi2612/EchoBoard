@@ -52,4 +52,16 @@ public class SessionController {
         SessionResponse response = sessionService.updateSession(id, request);
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/{id}/start")
+    public ResponseEntity<SessionResponse> startSession(@PathVariable Long id) {
+        SessionResponse response =sessionService.startSession(id);
+        return  ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/end")
+    public ResponseEntity<SessionResponse> ednSession(@PathVariable Long id) {
+        SessionResponse response =sessionService.endSession(id);
+        return  ResponseEntity.ok(response);
+    }
 }

@@ -15,4 +15,8 @@ public interface SessionService {
     SessionResponse getSessionById(Long id);
 
     SessionResponse updateSession(Long id, UpdateSessionRequest request);
+
+    SessionResponse startSession(Long id);
+
+    SessionResponse endSession(Long id);
 }

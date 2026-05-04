@@ -18,12 +18,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static com.echoboard.enums.SessionStatus.*;
-import static com.echoboard.exception.ErrorCode.RESOURCE_NOT_FOUND;
-import static com.echoboard.exception.ErrorCode.VALIDATION_ERROR;
+import static com.echoboard.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.*;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 
 @Service
 @RequiredArgsConstructor
@@ -123,6 +124,52 @@ public class SessionServiceImpl implements SessionService {
         }
         Session updatedSession = sessionRepository.save(session);
         return sessionMapper.sessionToSessionResponse(updatedSession);
+    }
+
+    @Override
+    public SessionResponse startSession(Long id) {
+        User owner = currentUserService.getCurrentUser();
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"));
+
+        if (session.getStatus() != SCHEDULED) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Only scheduled sessions can be started"
+            );
+        }
+
+        session.setStartedAt(LocalDateTime.now());
+        session.setStatus(LIVE);
+        Session startedSession = sessionRepository.save(session);
+        return sessionMapper.sessionToSessionResponse(startedSession);
+    }
+
+    @Override
+    public SessionResponse endSession(Long id) {
+        User owner = currentUserService.getCurrentUser();
+        Session session = sessionRepository.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"));
+
+        if (session.getStatus() != LIVE) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Only live sessions can be ended"
+            );
+        }
+
+        session.setEndedAt(LocalDateTime.now());
+        session.setStatus(ENDED);
+        Session endedSession = sessionRepository.save(session);
+        return sessionMapper.sessionToSessionResponse(endedSession);
     }
 
     private String generateUniqueAccessCode() {
