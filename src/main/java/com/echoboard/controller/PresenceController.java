@@ -1,0 +1,28 @@
+package com.echoboard.controller;
+
+import com.echoboard.service.PresenceService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.stereotype.Controller;
+
+@Controller
+@RequiredArgsConstructor
+public class PresenceController {
+
+    private final PresenceService presenceService;
+
+    @MessageMapping("/sessions/{sessionId}/presence.join")
+    public void join(
+            @DestinationVariable("sessionId") Long sessionId,
+            SimpMessageHeaderAccessor headerAccessor
+    ) {
+        presenceService.join(sessionId, headerAccessor.getSessionId());
+    }
+
+    @MessageMapping("/sessions/{sessionId}/presence.leave")
+    public void leave(@DestinationVariable("sessionId") Long sessionId) {
+        presenceService.leave(sessionId);
+    }
+}
