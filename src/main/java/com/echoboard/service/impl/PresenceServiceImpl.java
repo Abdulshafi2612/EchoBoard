@@ -19,10 +19,7 @@ import static com.echoboard.enums.PresenceEventType.JOINED;
 import static com.echoboard.enums.PresenceEventType.LEFT;
 import static com.echoboard.enums.TokenType.ACCESS;
 import static com.echoboard.enums.TokenType.PARTICIPANT;
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.FORBIDDEN;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.springframework.http.HttpStatus.*;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +47,12 @@ public class PresenceServiceImpl implements PresenceService {
     }
 
     @Override
-    public void leave(Long sessionId) {
+    public void leave(String webSocketSessionId) {
+        Long sessionId = webSocketSessionToSessionId.remove(webSocketSessionId);
+        if (sessionId == null) {
+            return;
+        }
+
         Integer count = onlineCounts.computeIfPresent(sessionId, (key, currentCount) -> {
             int newCount = currentCount - 1;
             return newCount <= 0 ? null : newCount;
@@ -62,13 +64,7 @@ public class PresenceServiceImpl implements PresenceService {
 
     @Override
     public void disconnect(String webSocketSessionId) {
-        Long sessionId = webSocketSessionToSessionId.remove(webSocketSessionId);
-
-        if (sessionId == null) {
-            return;
-        }
-
-        leave(sessionId);
+        leave(webSocketSessionId);
     }
 
     private void validateLiveSession(Long sessionId) {

@@ -164,17 +164,10 @@
             return;
         }
 
-        const sessionId = document.getElementById('sessionIdInput').value.trim();
-
-        if (sessionId.length === 0) {
-            addMessage('Session ID is required');
-            return;
-        }
-
-        const destination = '/app/sessions/' + sessionId + '/presence.leave';
+        const destination = '/app/sessions/presence.leave';
 
         stompClient.send(destination, {}, '');
-        addMessage('Presence leave sent for session ' + sessionId);
+        addMessage('Presence leave sent');
     }
 
     function setStatus(text) {
