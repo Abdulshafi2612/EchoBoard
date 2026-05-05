@@ -95,6 +95,15 @@ public class JwtService {
                 .get("type", String.class);
     }
 
+    public boolean isTokenType(String token, TokenType expectedType) {
+        try {
+            String actualType = extractTokenType(token);
+            return expectedType.name().equals(actualType);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private String generateToken(User user, long expirationMs, TokenType type) {
         Date now = new Date();
         Date expirationTime = new Date(now.getTime() + expirationMs);

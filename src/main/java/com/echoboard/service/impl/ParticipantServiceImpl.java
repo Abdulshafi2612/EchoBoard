@@ -78,4 +78,9 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         return joinSessionResponse;
     }
+
+    @Override
+    public Participant getParticipantById(Long participantId) {
+        return participantRepository.findById(participantId).orElse(null);
+    }
 }
