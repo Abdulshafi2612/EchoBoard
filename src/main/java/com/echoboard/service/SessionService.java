@@ -4,6 +4,7 @@ import com.echoboard.dto.common.PageResponse;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.dto.session.UpdateSessionRequest;
+import com.echoboard.entity.Session;
 import org.springframework.data.domain.Pageable;
 
 public interface SessionService {
@@ -12,7 +13,9 @@ public interface SessionService {
 
     PageResponse<SessionResponse> getMySessions(Pageable pageable);
 
-    SessionResponse getSessionById(Long id);
+    SessionResponse getSessionResponseById(Long id);
+
+    Session getSessionById(Long id);
 
     SessionResponse updateSession(Long id, UpdateSessionRequest request);
 

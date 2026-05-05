@@ -18,7 +18,11 @@ public class PresenceController {
             @DestinationVariable("sessionId") Long sessionId,
             SimpMessageHeaderAccessor headerAccessor
     ) {
-        presenceService.join(sessionId, headerAccessor.getSessionId());
+        presenceService.join(
+                sessionId,
+                headerAccessor.getSessionId(),
+                (String) headerAccessor.getSessionAttributes().get("tokenType"),
+                (Long) headerAccessor.getSessionAttributes().get("sessionId"));
     }
 
     @MessageMapping("/sessions/{sessionId}/presence.leave")

@@ -81,9 +81,14 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public SessionResponse getSessionById(Long id) {
+    public SessionResponse getSessionResponseById(Long id) {
         Session session = getOwnedSessionOrThrow(id);
         return sessionMapper.sessionToSessionResponse(session);
+    }
+
+    @Override
+    public Session getSessionById(Long id) {
+        return sessionRepository.findById(id).orElse(null);
     }
 
     @Override
