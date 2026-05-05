@@ -63,14 +63,6 @@ public class JwtService {
         }
     }
 
-    public boolean isTokenType(String token, TokenType expectedType) {
-        try {
-            String actualType = extractTokenType(token);
-            return expectedType.name().equals(actualType);
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
 
     public String generateParticipantToken(Participant participant) {
