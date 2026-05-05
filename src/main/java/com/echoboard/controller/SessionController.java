@@ -40,7 +40,7 @@ public class SessionController {
 
     @GetMapping("/{id}")
     public ResponseEntity<SessionResponse> getSessionById(@PathVariable Long id) {
-        SessionResponse sessionResponse = sessionService.getSessionById(id);
+        SessionResponse sessionResponse = sessionService.getSessionResponseById(id);
         return ResponseEntity.ok(sessionResponse);
     }
 

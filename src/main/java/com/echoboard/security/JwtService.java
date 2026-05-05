@@ -2,6 +2,7 @@ package com.echoboard.security;
 
 import com.echoboard.entity.Participant;
 import com.echoboard.entity.User;
+import com.echoboard.enums.TokenType;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+
+import static com.echoboard.enums.TokenType.*;
 
 @Service
 public class JwtService {
@@ -29,11 +32,11 @@ public class JwtService {
 
 
     public String generateAccessToken(User user) {
-        return generateToken(user, accessTokenExpirationMs);
+        return generateToken(user, accessTokenExpirationMs, ACCESS);
     }
 
     public String generateRefreshToken(User user) {
-        return generateToken(user, refreshTokenExpirationMs);
+        return generateToken(user, refreshTokenExpirationMs, REFRESH);
     }
 
     public String extractEmail(String token) {
@@ -60,6 +63,16 @@ public class JwtService {
         }
     }
 
+    public boolean isTokenType(String token, TokenType expectedType) {
+        try {
+            String actualType = extractTokenType(token);
+            return expectedType.name().equals(actualType);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+
     public String generateParticipantToken(Participant participant) {
         Date now = new Date();
         Date expirationTime = new Date(now.getTime() + participantTokenExpirationMs);
@@ -67,7 +80,7 @@ public class JwtService {
                 .builder()
                 .claim("participantId", participant.getId())
                 .claim("sessionId", participant.getSession().getId())
-                .claim("type","PARTICIPANT")
+                .claim("type", PARTICIPANT.name())
                 .issuedAt(now)
                 .expiration(expirationTime)
                 .signWith(getSigningKey())
@@ -90,7 +103,7 @@ public class JwtService {
                 .get("type", String.class);
     }
 
-    private String generateToken(User user, long expirationMs) {
+    private String generateToken(User user, long expirationMs, TokenType type) {
         Date now = new Date();
         Date expirationTime = new Date(now.getTime() + expirationMs);
 
@@ -99,6 +112,7 @@ public class JwtService {
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
                 .claim("role", user.getRole().name())
+                .claim("type", type.name())
                 .issuedAt(now)
                 .expiration(expirationTime)
                 .signWith(getSigningKey())
