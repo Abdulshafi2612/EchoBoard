@@ -4,13 +4,8 @@ import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.service.QuestionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -28,6 +23,36 @@ public class QuestionController {
     ) {
         questionService.submitQuestion(sessionId, request);
 
-        return  ResponseEntity.status(CREATED).build();
+        return ResponseEntity.status(CREATED).build();
+    }
+
+    @PatchMapping("/{questionId}/approve")
+    public ResponseEntity<Void> approveQuestion(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId
+    ) {
+        questionService.approveQuestion(sessionId, questionId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{questionId}/hide")
+    public ResponseEntity<Void> hideQuestion(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId
+    ) {
+        questionService.hideQuestion(sessionId, questionId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/{questionId}/pin")
+    public ResponseEntity<Void> pinQuestion(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId
+    ) {
+        questionService.pinQuestion(sessionId, questionId);
+
+        return ResponseEntity.ok().build();
     }
 }

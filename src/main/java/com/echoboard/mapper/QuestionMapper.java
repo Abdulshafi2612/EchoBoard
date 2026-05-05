@@ -8,9 +8,8 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface QuestionMapper {
 
-
-    @Mapping(target = "questionId",source = "id")
-    @Mapping(target = "sessionId",source = "session.id")
-    @Mapping(target = "participantDisplayName",source = "participant.displayName")
+    @Mapping(target = "questionId", source = "id")
+    @Mapping(target = "sessionId", source = "session.id")
+    @Mapping(target = "participantDisplayName", source = "participant.displayName")
     QuestionEvent questionToQuestionEvent(Question question);
 }

@@ -34,13 +34,18 @@ public class Question {
     @Size(min = 1, max = 1000)
     private String content;
 
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private QuestionStatus status;
 
+    @Column(nullable = false)
+    private int upvoteCount = 0;
 
+    @Column(nullable = false)
     private boolean pinned = false;
+
+    @Column(nullable = false)
+    private boolean answered = false;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -48,7 +53,6 @@ public class Question {
     private LocalDateTime approvedAt;
 
     private LocalDateTime answeredAt;
-
 
     @PrePersist
     public void prePersist() {
