@@ -22,11 +22,12 @@ public class PresenceController {
                 sessionId,
                 headerAccessor.getSessionId(),
                 (String) headerAccessor.getSessionAttributes().get("tokenType"),
-                (Long) headerAccessor.getSessionAttributes().get("sessionId"));
+                (Long) headerAccessor.getSessionAttributes().get("sessionId")
+        );
     }
 
-    @MessageMapping("/sessions/{sessionId}/presence.leave")
-    public void leave(@DestinationVariable("sessionId") Long sessionId) {
-        presenceService.leave(sessionId);
+    @MessageMapping("/sessions/presence.leave")
+    public void leave(SimpMessageHeaderAccessor headerAccessor) {
+        presenceService.leave(headerAccessor.getSessionId());
     }
 }
