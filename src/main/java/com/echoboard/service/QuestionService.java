@@ -24,4 +24,6 @@ public interface QuestionService {
 
     void markQuestionAsAnswered(Long sessionId, Long questionId);
 
+    void upvotequestion(Long sessionId, Long questionId);
+
 }

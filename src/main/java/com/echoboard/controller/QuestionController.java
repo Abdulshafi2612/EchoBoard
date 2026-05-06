@@ -102,4 +102,15 @@ public class QuestionController {
         questionService.deleteQuestion(sessionId, questionId);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{questionId}/upvote")
+    public ResponseEntity<Void> upvoteQuestion(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId
+    ) {
+        questionService.upvotequestion(sessionId, questionId);
+
+        return ResponseEntity.ok().build();
+    }
+
 }

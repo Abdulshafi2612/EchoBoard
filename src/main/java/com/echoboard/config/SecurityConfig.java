@@ -46,6 +46,7 @@ public class SecurityConfig {
                                         "/ws/**"
                                 ).permitAll()
                                 .requestMatchers(POST, "/api/v1/sessions/*/questions").permitAll()
+                                .requestMatchers(POST, "/api/v1/sessions/*/questions/*/upvote").permitAll()
                                 .requestMatchers(DELETE, "/api/v1/sessions/*/questions/*").permitAll()
                                 .anyRequest().authenticated()
                 )

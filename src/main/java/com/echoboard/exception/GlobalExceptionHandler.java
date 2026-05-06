@@ -1,6 +1,7 @@
 package com.echoboard.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -11,6 +12,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static com.echoboard.exception.ErrorCode.DUPLICATE_RESOURCE;
+import static com.echoboard.exception.ErrorCode.VALIDATION_ERROR;
+import static org.springframework.http.HttpStatus.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -45,8 +50,8 @@ public class GlobalExceptionHandler {
         }
 
         ErrorResponse response = buildErrorResponse(
-                HttpStatus.BAD_REQUEST,
-                ErrorCode.VALIDATION_ERROR.name(),
+                BAD_REQUEST,
+                VALIDATION_ERROR.name(),
                 "Validation failed",
                 request.getRequestURI(),
                 fields
@@ -63,7 +68,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         ErrorResponse response = buildErrorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR,
+                INTERNAL_SERVER_ERROR,
                 ErrorCode.INTERNAL_SERVER_ERROR.name(),
                 "Something went wrong",
                 request.getRequestURI(),
@@ -71,7 +76,25 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .status(INTERNAL_SERVER_ERROR)
+                .body(response);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(
+            DataIntegrityViolationException exception,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = buildErrorResponse(
+                CONFLICT,
+                DUPLICATE_RESOURCE.name(),
+                "Resource already exists",
+                request.getRequestURI(),
+                null
+        );
+
+        return ResponseEntity
+                .status(CONFLICT)
                 .body(response);
     }
 

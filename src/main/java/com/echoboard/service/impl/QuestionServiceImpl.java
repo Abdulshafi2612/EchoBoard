@@ -5,16 +5,14 @@ import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.dto.websocket.QuestionDeletedEvent;
 import com.echoboard.dto.websocket.QuestionEvent;
-import com.echoboard.entity.Participant;
-import com.echoboard.entity.Question;
-import com.echoboard.entity.Session;
-import com.echoboard.entity.User;
+import com.echoboard.entity.*;
 import com.echoboard.enums.QuestionEventType;
 import com.echoboard.enums.QuestionStatus;
 import com.echoboard.enums.SessionStatus;
 import com.echoboard.exception.AppException;
 import com.echoboard.mapper.QuestionMapper;
 import com.echoboard.repository.QuestionRepository;
+import com.echoboard.repository.QuestionVoteRepository;
 import com.echoboard.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -48,6 +46,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final SimpMessagingTemplate messagingTemplate;
     private final CurrentParticipantService currentParticipantService;
     private final CurrentUserService currentUserService;
+    private final QuestionVoteRepository questionVoteRepository;
 
     @Override
     public PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(
@@ -162,6 +161,49 @@ public class QuestionServiceImpl implements QuestionService {
         Question savedQuestion = questionRepository.save(question);
         broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
     }
+
+    @Override
+    @Transactional
+    public void upvotequestion(Long sessionId, Long questionId) {
+        Long participantId = currentParticipantService.getCurrentParticipantId();
+        validateParticipantIdentity(participantId);
+
+        getLiveSessionOrThrow(sessionId);
+
+        Participant participant = getParticipantOrThrow(participantId);
+        validateParticipantBelongsToSession(participant, sessionId);
+        validateParticipantIsNotMuted(participant);
+
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Question not found"
+                ));
+
+        validateQuestionBelongsToSession(question, sessionId);
+        validateQuestionIsApproved(question);
+
+        if (questionVoteRepository.existsByParticipant_IdAndQuestion_Id(participantId, questionId)) {
+            throw new AppException(
+                    FORBIDDEN,
+                    HttpStatus.FORBIDDEN,
+                    "Participant cannot upvote the same question again"
+            );
+        }
+
+        QuestionVote questionVote = new QuestionVote();
+        questionVote.setQuestion(question);
+        questionVote.setParticipant(participant);
+
+        questionVoteRepository.save(questionVote);
+
+        question.setUpvoteCount(question.getUpvoteCount() + 1);
+        Question savedQuestion = questionRepository.save(question);
+
+        broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
+    }
+
 
     private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {
         return questionRepository
