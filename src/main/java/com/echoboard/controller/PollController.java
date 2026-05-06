@@ -34,4 +34,14 @@ public class PollController {
         return ResponseEntity.ok(pollResponse);
 
     }
+
+    @PostMapping("/{pollId}/vote/{optionId}")
+    public ResponseEntity<PollResponse> voteOnPoll(@PathVariable Long pollId,
+                                                   @PathVariable Long sessionId,
+                                                   @PathVariable Long optionId) {
+        PollResponse pollResponse = pollService.voteOnPoll(pollId, sessionId, optionId);
+
+        return ResponseEntity.ok(pollResponse);
+
+    }
 }

@@ -8,4 +8,6 @@ public interface PollService {
     PollResponse submitDraftPoll(CreatePollRequest request, Long sessionId);
 
     PollResponse publishPoll(Long pollId, Long sessionId);
+
+    PollResponse voteOnPoll(Long pollId, Long sessionId, Long optionId);
 }

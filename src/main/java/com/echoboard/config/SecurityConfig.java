@@ -48,6 +48,7 @@ public class SecurityConfig {
                                 .requestMatchers(POST, "/api/v1/sessions/*/questions").permitAll()
                                 .requestMatchers(POST, "/api/v1/sessions/*/questions/*/upvote").permitAll()
                                 .requestMatchers(DELETE, "/api/v1/sessions/*/questions/*").permitAll()
+                                .requestMatchers(POST, "/api/v1/sessions/*/polls/*/vote/*").permitAll()
                                 .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
