@@ -4,7 +4,6 @@ import com.echoboard.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -13,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import static org.springframework.http.HttpMethod.DELETE;
+import static org.springframework.http.HttpMethod.POST;
 
 @Configuration
 @RequiredArgsConstructor
@@ -43,9 +43,9 @@ public class SecurityConfig {
                                         "/v3/api-docs/**",
                                         "/actuator/health",
                                         "/api/v1/sessions/join",
-                                        "/api/v1/sessions/*/questions",
                                         "/ws/**"
                                 ).permitAll()
+                                .requestMatchers(POST, "/api/v1/sessions/*/questions").permitAll()
                                 .requestMatchers(DELETE, "/api/v1/sessions/*/questions/*").permitAll()
                                 .anyRequest().authenticated()
                 )

@@ -14,12 +14,13 @@ public interface QuestionService {
 
     void deleteQuestion(Long sessionId, Long questionId);
 
-
     void approveQuestion(Long sessionId, Long questionId);
 
     void hideQuestion(Long sessionId, Long questionId);
 
     void pinQuestion(Long sessionId, Long questionId);
+
+    void unpinquestion(Long sessionId, Long questionId);
 
     void markQuestionAsAnswered(Long sessionId, Long questionId);
 

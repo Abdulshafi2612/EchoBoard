@@ -9,6 +9,7 @@ import com.echoboard.entity.Participant;
 import com.echoboard.entity.Question;
 import com.echoboard.entity.Session;
 import com.echoboard.entity.User;
+import com.echoboard.enums.QuestionEventType;
 import com.echoboard.enums.QuestionStatus;
 import com.echoboard.enums.SessionStatus;
 import com.echoboard.exception.AppException;
@@ -26,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.echoboard.enums.QuestionEventType.CREATED;
+import static com.echoboard.enums.QuestionEventType.UPDATED;
 import static com.echoboard.enums.QuestionStatus.*;
 import static com.echoboard.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -94,7 +97,11 @@ public class QuestionServiceImpl implements QuestionService {
         Question question = createQuestion(session, participant, request.getContent());
         Question savedQuestion = questionRepository.save(question);
 
-        broadcastQuestionEvent(savedQuestion);
+        if (PENDING.equals(savedQuestion.getStatus())) {
+            broadcastQuestionEventToPendingTopic(savedQuestion, CREATED);
+        } else {
+            broadcastQuestionEventToPublicTopic(savedQuestion, CREATED);
+        }
     }
 
     @Override
@@ -120,25 +127,25 @@ public class QuestionServiceImpl implements QuestionService {
     @Override
     @Transactional
     public void approveQuestion(Long sessionId, Long questionId) {
-        changeOwnedQuestionStatus(sessionId, questionId, APPROVED);
+        approvePendingQuestion(sessionId, questionId);
     }
 
     @Override
     @Transactional
     public void hideQuestion(Long sessionId, Long questionId) {
-        changeOwnedQuestionStatus(sessionId, questionId, HIDDEN);
+        hidePendingQuestion(sessionId, questionId);
     }
 
     @Override
     @Transactional
     public void pinQuestion(Long sessionId, Long questionId) {
-        Question question = getQuestionOfOwnedSession(sessionId, questionId);
-        validateQuestionIsApproved(question);
+        pinOrUnpinQuestion(sessionId, questionId, true);
+    }
 
-        question.setPinned(true);
-
-        Question savedQuestion = questionRepository.save(question);
-        broadcastQuestionEvent(savedQuestion);
+    @Override
+    @Transactional
+    public void unpinquestion(Long sessionId, Long questionId) {
+        pinOrUnpinQuestion(sessionId, questionId, false);
     }
 
     @Override
@@ -153,7 +160,7 @@ public class QuestionServiceImpl implements QuestionService {
         question.setPinned(false);
 
         Question savedQuestion = questionRepository.save(question);
-        broadcastQuestionEvent(savedQuestion);
+        broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
     }
 
     private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {
@@ -164,6 +171,16 @@ public class QuestionServiceImpl implements QuestionService {
                         NOT_FOUND,
                         "Question not found"
                 ));
+    }
+
+    private void pinOrUnpinQuestion(Long sessionId, Long questionId, boolean pinned) {
+        Question question = getQuestionOfOwnedSession(sessionId, questionId);
+        validateQuestionIsApproved(question);
+
+        question.setPinned(pinned);
+
+        Question savedQuestion = questionRepository.save(question);
+        broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
     }
 
     private Question getQuestionOfOwnedSession(Long sessionId, Long questionId) {
@@ -185,21 +202,28 @@ public class QuestionServiceImpl implements QuestionService {
         return question;
     }
 
-    private void changeOwnedQuestionStatus(Long sessionId, Long questionId, QuestionStatus questionStatus) {
+    private void approvePendingQuestion(Long sessionId, Long questionId) {
         Question question = getQuestionOfOwnedSession(sessionId, questionId);
         validateQuestionIsPending(question);
 
-        question.setStatus(questionStatus);
-
-        if (APPROVED.equals(questionStatus)) {
-            question.setApprovedAt(LocalDateTime.now());
-        }
+        question.setStatus(APPROVED);
+        question.setApprovedAt(LocalDateTime.now());
 
         Question savedQuestion = questionRepository.save(question);
 
-        if (APPROVED.equals(questionStatus)) {
-            broadcastQuestionEvent(savedQuestion);
-        }
+        broadcastQuestionEventToPendingTopic(savedQuestion, UPDATED);
+        broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
+    }
+
+    private void hidePendingQuestion(Long sessionId, Long questionId) {
+        Question question = getQuestionOfOwnedSession(sessionId, questionId);
+        validateQuestionIsPending(question);
+
+        question.setStatus(HIDDEN);
+
+        Question savedQuestion = questionRepository.save(question);
+
+        broadcastQuestionEventToPendingTopic(savedQuestion, UPDATED);
     }
 
     private void validateParticipantIdentity(Long participantId) {
@@ -293,7 +317,7 @@ public class QuestionServiceImpl implements QuestionService {
             throw new AppException(
                     FORBIDDEN,
                     HttpStatus.FORBIDDEN,
-                    "Participant is not allowed to submit questions to this session"
+                    "Participant is not allowed to access this session"
             );
         }
     }
@@ -329,19 +353,28 @@ public class QuestionServiceImpl implements QuestionService {
         return session.isModerationEnabled() ? PENDING : APPROVED;
     }
 
-    private void broadcastQuestionEvent(Question question) {
-        QuestionEvent event = questionMapper.questionToQuestionEvent(question);
-        String destination = resolveQuestionEventDestination(event);
+    private void broadcastQuestionEventToPublicTopic(Question question, QuestionEventType eventType) {
+        QuestionEvent event = buildQuestionEvent(question, eventType);
 
-        messagingTemplate.convertAndSend(destination, event);
+        messagingTemplate.convertAndSend(
+                QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId()),
+                event
+        );
     }
 
-    private String resolveQuestionEventDestination(QuestionEvent event) {
-        if (PENDING.equals(event.getStatus())) {
-            return PENDING_QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId());
-        }
+    private void broadcastQuestionEventToPendingTopic(Question question, QuestionEventType eventType) {
+        QuestionEvent event = buildQuestionEvent(question, eventType);
 
-        return QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId());
+        messagingTemplate.convertAndSend(
+                PENDING_QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId()),
+                event
+        );
+    }
+
+    private QuestionEvent buildQuestionEvent(Question question, QuestionEventType eventType) {
+        QuestionEvent event = questionMapper.questionToQuestionEvent(question);
+        event.setQuestionEventType(eventType);
+        return event;
     }
 
     private void broadcastQuestionDeletedEvent(Long sessionId, Long questionId) {

@@ -74,6 +74,15 @@ public class QuestionController {
 
         return ResponseEntity.ok().build();
     }
+    @PatchMapping("/{questionId}/unpin")
+    public ResponseEntity<Void> unpinquestion(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId
+    ) {
+        questionService.unpinquestion(sessionId, questionId);
+
+        return ResponseEntity.ok().build();
+    }
 
     @PatchMapping("/{questionId}/answer")
     public ResponseEntity<Void> markQuestionAsAnswered(

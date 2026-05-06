@@ -1,11 +1,8 @@
 package com.echoboard.dto.websocket;
 
+import com.echoboard.enums.QuestionEventType;
 import com.echoboard.enums.QuestionStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -15,6 +12,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @Builder
 public class QuestionEvent {
+
+    private QuestionEventType questionEventType;
 
     private Long questionId;
 
