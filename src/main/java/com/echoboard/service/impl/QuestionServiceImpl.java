@@ -1,6 +1,9 @@
 package com.echoboard.service.impl;
 
+import com.echoboard.dto.common.PageResponse;
+import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.dto.question.SubmitQuestionRequest;
+import com.echoboard.dto.websocket.QuestionDeletedEvent;
 import com.echoboard.dto.websocket.QuestionEvent;
 import com.echoboard.entity.Participant;
 import com.echoboard.entity.Question;
@@ -11,22 +14,19 @@ import com.echoboard.enums.SessionStatus;
 import com.echoboard.exception.AppException;
 import com.echoboard.mapper.QuestionMapper;
 import com.echoboard.repository.QuestionRepository;
-import com.echoboard.service.CurrentParticipantService;
-import com.echoboard.service.CurrentUserService;
-import com.echoboard.service.ParticipantService;
-import com.echoboard.service.QuestionService;
-import com.echoboard.service.SessionService;
+import com.echoboard.service.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
-import static com.echoboard.enums.QuestionStatus.APPROVED;
-import static com.echoboard.enums.QuestionStatus.HIDDEN;
-import static com.echoboard.enums.QuestionStatus.PENDING;
+import static com.echoboard.enums.QuestionStatus.*;
 import static com.echoboard.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -35,6 +35,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RequiredArgsConstructor
 public class QuestionServiceImpl implements QuestionService {
 
+    private static final String QUESTIONS_TOPIC_TEMPLATE = "/topic/sessions/%d/questions";
+    private static final String PENDING_QUESTIONS_TOPIC_TEMPLATE = "/topic/sessions/%d/questions/pending";
+
     private final QuestionRepository questionRepository;
     private final SessionService sessionService;
     private final ParticipantService participantService;
@@ -42,6 +45,39 @@ public class QuestionServiceImpl implements QuestionService {
     private final SimpMessagingTemplate messagingTemplate;
     private final CurrentParticipantService currentParticipantService;
     private final CurrentUserService currentUserService;
+
+    @Override
+    public PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(
+            Pageable pageable,
+            Long sessionId,
+            QuestionStatus status
+    ) {
+        User user = currentUserService.getCurrentUser();
+        Session session = getLiveSessionOrThrow(sessionId);
+
+        validateUserOwnsSession(session, user);
+
+        Page<Question> questionPage = questionRepository.findBySession_IdAndStatus(
+                sessionId,
+                status,
+                pageable
+        );
+
+        List<QuestionResponse> questionResponses = questionPage
+                .getContent()
+                .stream()
+                .map(questionMapper::questionToQuestionResponse)
+                .toList();
+
+        return new PageResponse<>(
+                questionResponses,
+                questionPage.getNumber(),
+                questionPage.getSize(),
+                questionPage.getTotalElements(),
+                questionPage.getTotalPages(),
+                questionPage.isLast()
+        );
+    }
 
     @Override
     @Transactional
@@ -59,6 +95,26 @@ public class QuestionServiceImpl implements QuestionService {
         Question savedQuestion = questionRepository.save(question);
 
         broadcastQuestionEvent(savedQuestion);
+    }
+
+    @Override
+    @Transactional
+    public void deleteQuestion(Long sessionId, Long questionId) {
+        Long participantId = currentParticipantService.getCurrentParticipantId();
+        validateParticipantIdentity(participantId);
+
+        getLiveSessionOrThrow(sessionId);
+
+        Participant participant = getParticipantOrThrow(participantId);
+        validateParticipantBelongsToSession(participant, sessionId);
+        validateParticipantIsNotMuted(participant);
+
+        Question question = getParticipantQuestionOrThrow(sessionId, questionId, participantId);
+        Long deletedQuestionId = question.getId();
+
+        questionRepository.delete(question);
+
+        broadcastQuestionDeletedEvent(sessionId, deletedQuestionId);
     }
 
     @Override
@@ -85,6 +141,31 @@ public class QuestionServiceImpl implements QuestionService {
         broadcastQuestionEvent(savedQuestion);
     }
 
+    @Override
+    @Transactional
+    public void markQuestionAsAnswered(Long sessionId, Long questionId) {
+        Question question = getQuestionOfOwnedSession(sessionId, questionId);
+        validateQuestionIsApproved(question);
+
+        question.setAnswered(true);
+        question.setStatus(ANSWERED);
+        question.setAnsweredAt(LocalDateTime.now());
+        question.setPinned(false);
+
+        Question savedQuestion = questionRepository.save(question);
+        broadcastQuestionEvent(savedQuestion);
+    }
+
+    private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {
+        return questionRepository
+                .findByIdAndSession_IdAndParticipant_Id(questionId, sessionId, participantId)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Question not found"
+                ));
+    }
+
     private Question getQuestionOfOwnedSession(Long sessionId, Long questionId) {
         User user = currentUserService.getCurrentUser();
 
@@ -99,13 +180,7 @@ public class QuestionServiceImpl implements QuestionService {
                         "Question not found"
                 ));
 
-        if (!question.getSession().getId().equals(sessionId)) {
-            throw new AppException(
-                    FORBIDDEN,
-                    HttpStatus.FORBIDDEN,
-                    "Question does not belong to this session"
-            );
-        }
+        validateQuestionBelongsToSession(question, sessionId);
 
         return question;
     }
@@ -163,6 +238,16 @@ public class QuestionServiceImpl implements QuestionService {
                     FORBIDDEN,
                     HttpStatus.FORBIDDEN,
                     "User does not own this session"
+            );
+        }
+    }
+
+    private void validateQuestionBelongsToSession(Question question, Long sessionId) {
+        if (!question.getSession().getId().equals(sessionId)) {
+            throw new AppException(
+                    FORBIDDEN,
+                    HttpStatus.FORBIDDEN,
+                    "Question does not belong to this session"
             );
         }
     }
@@ -246,10 +331,33 @@ public class QuestionServiceImpl implements QuestionService {
 
     private void broadcastQuestionEvent(Question question) {
         QuestionEvent event = questionMapper.questionToQuestionEvent(question);
-        String destinationSuffix = PENDING.equals(event.getStatus()) ? "/pending" : "";
+        String destination = resolveQuestionEventDestination(event);
+
+        messagingTemplate.convertAndSend(destination, event);
+    }
+
+    private String resolveQuestionEventDestination(QuestionEvent event) {
+        if (PENDING.equals(event.getStatus())) {
+            return PENDING_QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId());
+        }
+
+        return QUESTIONS_TOPIC_TEMPLATE.formatted(event.getSessionId());
+    }
+
+    private void broadcastQuestionDeletedEvent(Long sessionId, Long questionId) {
+        QuestionDeletedEvent event = QuestionDeletedEvent
+                .builder()
+                .questionId(questionId)
+                .sessionId(sessionId)
+                .build();
 
         messagingTemplate.convertAndSend(
-                "/topic/sessions/" + event.getSessionId() + "/questions" + destinationSuffix,
+                QUESTIONS_TOPIC_TEMPLATE.formatted(sessionId),
+                event
+        );
+
+        messagingTemplate.convertAndSend(
+                PENDING_QUESTIONS_TOPIC_TEMPLATE.formatted(sessionId),
                 event
         );
     }
