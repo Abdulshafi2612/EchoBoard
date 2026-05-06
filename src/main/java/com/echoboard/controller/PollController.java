@@ -25,4 +25,13 @@ public class PollController {
         return ResponseEntity.status(HttpStatus.CREATED).body(pollResponse);
 
     }
+
+    @PatchMapping("/{pollId}/publish")
+    public ResponseEntity<PollResponse> publishPoll(@PathVariable Long pollId,
+                                                    @PathVariable Long sessionId) {
+        PollResponse pollResponse = pollService.publishPoll(pollId, sessionId);
+
+        return ResponseEntity.ok(pollResponse);
+
+    }
 }

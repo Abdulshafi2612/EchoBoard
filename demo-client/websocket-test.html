@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 40px auto;
             padding: 0 20px;
         }
@@ -56,6 +56,7 @@
 
         li {
             margin-bottom: 6px;
+            word-break: break-word;
         }
     </style>
 </head>
@@ -72,8 +73,12 @@
 </div>
 
 <div class="section">
-    <h3>Presence</h3>
+    <h3>Session</h3>
     <input id="sessionIdInput" placeholder="Session ID" value="1">
+</div>
+
+<div class="section">
+    <h3>Presence</h3>
     <button onclick="joinPresence()">Join Presence</button>
     <button onclick="leavePresence()">Leave Presence</button>
 </div>
@@ -83,7 +88,12 @@
     <input id="questionInput" class="question-input" placeholder="Type your question">
     <br><br>
     <button onclick="subscribeToQuestions()">Subscribe To Questions</button>
-    <button onclick="submitQuestion()">Submit Question</button>
+    <button onclick="submitQuestionLegacy()">Submit Question Legacy WebSocket</button>
+</div>
+
+<div class="section">
+    <h3>Polls</h3>
+    <button onclick="subscribeToPolls()">Subscribe To Polls</button>
 </div>
 
 <div class="section">
@@ -97,9 +107,11 @@
 <script>
     let stompClient = null;
     let connected = false;
+
     let currentPresenceSubscription = null;
     let currentQuestionsSubscription = null;
     let currentPendingQuestionsSubscription = null;
+    let currentPollsSubscription = null;
 
     function connect() {
         if (connected) {
@@ -138,9 +150,12 @@
         stompClient.disconnect(function () {
             connected = false;
             stompClient = null;
+
             currentPresenceSubscription = null;
             currentQuestionsSubscription = null;
             currentPendingQuestionsSubscription = null;
+            currentPollsSubscription = null;
+
             setStatus('Disconnected');
             addMessage('Disconnected from WebSocket');
         });
@@ -152,10 +167,9 @@
             return;
         }
 
-        const sessionId = document.getElementById('sessionIdInput').value.trim();
+        const sessionId = getSessionId();
 
-        if (sessionId.length === 0) {
-            addMessage('Session ID is required');
+        if (sessionId === null) {
             return;
         }
 
@@ -193,10 +207,9 @@
             return;
         }
 
-        const sessionId = document.getElementById('sessionIdInput').value.trim();
+        const sessionId = getSessionId();
 
-        if (sessionId.length === 0) {
-            addMessage('Session ID is required');
+        if (sessionId === null) {
             return;
         }
 
@@ -214,46 +227,55 @@
         const pendingQuestionsTopic = '/topic/sessions/' + sessionId + '/questions/pending';
 
         currentQuestionsSubscription = stompClient.subscribe(publicQuestionsTopic, function (message) {
-            addMessage('Approved question event: ' + message.body);
+            addMessage('Question public event: ' + message.body);
         });
 
         currentPendingQuestionsSubscription = stompClient.subscribe(pendingQuestionsTopic, function (message) {
-            addMessage('Pending question event: ' + message.body);
+            addMessage('Question pending event: ' + message.body);
         });
 
         addMessage('Subscribed to question topics for session ' + sessionId);
     }
 
-    function submitQuestion() {
+    function subscribeToPolls() {
         if (!connected) {
-            addMessage('Connect first before submitting a question');
+            addMessage('Connect first before subscribing to polls');
             return;
         }
 
+        const sessionId = getSessionId();
+
+        if (sessionId === null) {
+            return;
+        }
+
+        if (currentPollsSubscription !== null) {
+            currentPollsSubscription.unsubscribe();
+            currentPollsSubscription = null;
+        }
+
+        const pollsTopic = '/topic/sessions/' + sessionId + '/polls';
+
+        currentPollsSubscription = stompClient.subscribe(pollsTopic, function (message) {
+            addMessage('Poll event: ' + message.body);
+        });
+
+        addMessage('Subscribed to poll topic for session ' + sessionId);
+    }
+
+    function submitQuestionLegacy() {
+        addMessage('This button uses the old WebSocket command. Use Postman REST endpoint for question submission.');
+    }
+
+    function getSessionId() {
         const sessionId = document.getElementById('sessionIdInput').value.trim();
-        const questionInput = document.getElementById('questionInput');
-        const content = questionInput.value.trim();
 
         if (sessionId.length === 0) {
             addMessage('Session ID is required');
-            return;
+            return null;
         }
 
-        if (content.length === 0) {
-            addMessage('Question content is required');
-            return;
-        }
-
-        const destination = '/app/sessions/' + sessionId + '/questions.submit';
-
-        const payload = {
-            content: content
-        };
-
-        stompClient.send(destination, {}, JSON.stringify(payload));
-        addMessage('Question submitted: ' + content);
-
-        questionInput.value = '';
+        return sessionId;
     }
 
     function setStatus(text) {

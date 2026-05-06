@@ -24,8 +24,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.echoboard.enums.PollEventType.UPDATED;
+import static com.echoboard.enums.PollStatus.DRAFT;
+import static com.echoboard.enums.PollStatus.PUBLISHED;
 import static com.echoboard.enums.SessionStatus.LIVE;
 import static com.echoboard.enums.SessionStatus.SCHEDULED;
 import static com.echoboard.exception.ErrorCode.*;
@@ -70,6 +74,43 @@ public class PollServiceImpl implements PollService {
         return pollMapper.pollToPollResponse(savedPoll, optionResponses);
     }
 
+    @Override
+    public PollResponse publishPoll(Long pollId, Long sessionId) {
+        User user = currentUserService.getCurrentUser();
+        Session session = getLiveSessionOrThrow(sessionId);
+        validateUserOwnsSession(session, user);
+        Poll poll = pollRepository.findById(pollId)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Poll not found."
+                ));
+        if (!poll.getSession().getId().equals(session.getId())) {
+            throw new AppException(
+                    RESOURCE_NOT_FOUND,
+                    NOT_FOUND,
+                    "Poll not found in this session."
+            );
+        }
+        if (!DRAFT.equals(poll.getStatus())) {
+            throw new AppException(
+                    INVALID_POLL_STATUS,
+                    BAD_REQUEST,
+                    "Only draft polls can be published."
+
+            );
+        }
+        poll.setStatus(PUBLISHED);
+        poll.setPublishedAt(LocalDateTime.now());
+        Poll savedPoll = pollRepository.save(poll);
+        List<PollOption> pollOptions = pollOptionRepository.findByPoll_Id(pollId);
+        List<PollOptionResponse> optionResponses = pollMapper.pollOptionsToPollOptionResponses(pollOptions);
+
+        broadcastPollEventToPublicTopic(poll,optionResponses, PollEventType.PUBLISHED);
+
+        return pollMapper.pollToPollResponse(savedPoll, optionResponses);
+    }
+
 
     private void validateUserOwnsSession(Session session, User user) {
         if (!session.getOwner().getId().equals(user.getId())) {
@@ -79,6 +120,28 @@ public class PollServiceImpl implements PollService {
                     "User does not own this session"
             );
         }
+    }
+
+    private Session getLiveSessionOrThrow(Long sessionId) {
+        Session session = sessionService.getSessionById(sessionId);
+
+        if (session == null) {
+            throw new AppException(
+                    RESOURCE_NOT_FOUND,
+                    NOT_FOUND,
+                    "Session not found"
+            );
+        }
+
+        if (LIVE != session.getStatus()) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "Only live sessions can publish polls"
+            );
+        }
+
+        return session;
     }
 
     private Session getLiveOrScheduledSessionOrThrow(Long sessionId) {
