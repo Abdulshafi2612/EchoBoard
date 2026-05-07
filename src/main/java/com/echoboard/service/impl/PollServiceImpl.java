@@ -4,12 +4,7 @@ import com.echoboard.dto.poll.CreatePollRequest;
 import com.echoboard.dto.poll.PollOptionResponse;
 import com.echoboard.dto.poll.PollResponse;
 import com.echoboard.dto.websocket.PollEvent;
-import com.echoboard.entity.Participant;
-import com.echoboard.entity.Poll;
-import com.echoboard.entity.PollOption;
-import com.echoboard.entity.PollVote;
-import com.echoboard.entity.Session;
-import com.echoboard.entity.User;
+import com.echoboard.entity.*;
 import com.echoboard.enums.PollEventType;
 import com.echoboard.enums.PollStatus;
 import com.echoboard.exception.AppException;
@@ -17,11 +12,7 @@ import com.echoboard.mapper.PollMapper;
 import com.echoboard.repository.PollOptionRepository;
 import com.echoboard.repository.PollRepository;
 import com.echoboard.repository.PollVoteRepository;
-import com.echoboard.service.CurrentParticipantService;
-import com.echoboard.service.CurrentUserService;
-import com.echoboard.service.ParticipantService;
-import com.echoboard.service.PollService;
-import com.echoboard.service.SessionService;
+import com.echoboard.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -31,15 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static com.echoboard.enums.PollEventType.PUBLISHED;
 import static com.echoboard.enums.PollEventType.UPDATED;
 import static com.echoboard.enums.PollStatus.DRAFT;
 import static com.echoboard.enums.SessionStatus.LIVE;
 import static com.echoboard.enums.SessionStatus.SCHEDULED;
-import static com.echoboard.exception.ErrorCode.FORBIDDEN;
-import static com.echoboard.exception.ErrorCode.INVALID_POLL_STATUS;
-import static com.echoboard.exception.ErrorCode.INVALID_SESSION_STATUS;
-import static com.echoboard.exception.ErrorCode.RESOURCE_NOT_FOUND;
+import static com.echoboard.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -75,29 +62,28 @@ public class PollServiceImpl implements PollService {
 
     @Override
     public PollResponse publishPoll(Long pollId, Long sessionId) {
-        User user = currentUserService.getCurrentUser();
-        Session session = getLiveSessionOrThrow(sessionId);
-
-        validateUserOwnsSession(session, user);
-
-        Poll poll = getPollOrThrow(pollId);
-        validatePollBelongsToSession(poll, session);
-        validatePollIsDraft(poll);
-
-        poll.setStatus(PollStatus.PUBLISHED);
-        poll.setPublishedAt(LocalDateTime.now());
-
-        Poll savedPoll = pollRepository.save(poll);
-        List<PollOption> pollOptions = getPollOptions(savedPoll.getId());
-
-        PollResponse response = buildPollResponse(savedPoll, pollOptions);
-        broadcastPollEventToPublicTopic(savedPoll, response.getOptions(), PUBLISHED);
-
-        return response;
+        return changePollStatus(
+                pollId,
+                sessionId,
+                PollStatus.DRAFT,
+                PollStatus.PUBLISHED,
+                PollEventType.PUBLISHED
+        );
     }
 
     @Override
-    public PollResponse voteOnPoll(Long pollId  , Long sessionId, Long pollOptionId) {
+    public PollResponse closePoll(Long pollId, Long sessionId) {
+        return changePollStatus(
+                pollId,
+                sessionId,
+                PollStatus.PUBLISHED,
+                PollStatus.CLOSED,
+                PollEventType.CLOSED
+        );
+    }
+
+    @Override
+    public PollResponse voteOnPoll(Long pollId, Long sessionId, Long pollOptionId) {
         Long participantId = currentParticipantService.getCurrentParticipantId();
         validateParticipantIdentity(participantId);
 
@@ -124,6 +110,66 @@ public class PollServiceImpl implements PollService {
         broadcastPollEventToPublicTopic(poll, response.getOptions(), UPDATED);
 
         return response;
+    }
+
+    @Override
+    public void deletePoll(Long pollId, Long sessionId) {
+        User user = currentUserService.getCurrentUser();
+        Session session = getLiveOrScheduledSessionOrThrow(sessionId);
+
+        validateUserOwnsSession(session, user);
+
+        Poll poll = getPollOrThrow(pollId);
+        validatePollBelongsToSession(poll, session);
+        validatePollStatus(poll, DRAFT);
+
+        pollOptionRepository.deleteByPoll_Id(pollId);
+        pollRepository.delete(poll);
+    }
+
+    private PollResponse changePollStatus(
+            Long pollId,
+            Long sessionId,
+            PollStatus expectedStatus,
+            PollStatus targetStatus,
+            PollEventType eventType
+    ) {
+        User user = currentUserService.getCurrentUser();
+        Session session = getLiveSessionOrThrow(sessionId);
+
+        validateUserOwnsSession(session, user);
+
+        Poll poll = getPollOrThrow(pollId);
+        validatePollBelongsToSession(poll, session);
+        validatePollStatus(poll, expectedStatus);
+
+        poll.setStatus(targetStatus);
+
+        if (PollStatus.PUBLISHED.equals(targetStatus)) {
+            poll.setPublishedAt(LocalDateTime.now());
+        }
+
+        if (PollStatus.CLOSED.equals(targetStatus)) {
+            poll.setClosedAt(LocalDateTime.now());
+        }
+
+        Poll savedPoll = pollRepository.save(poll);
+        List<PollOption> pollOptions = getPollOptions(savedPoll.getId());
+
+        PollResponse response = buildPollResponse(savedPoll, pollOptions);
+        broadcastPollEventToPublicTopic(savedPoll, response.getOptions(), eventType);
+
+        return response;
+    }
+
+    private void validatePollStatus(Poll poll, PollStatus expectedStatus) {
+        if (!expectedStatus.equals(poll.getStatus())) {
+            throw new AppException(
+                    INVALID_POLL_STATUS,
+                    BAD_REQUEST,
+                    "Poll must be " + expectedStatus
+            );
+        }
     }
 
     private Poll createAndSaveDraftPoll(CreatePollRequest request, Session session) {

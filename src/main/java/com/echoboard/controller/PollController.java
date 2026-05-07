@@ -35,6 +35,15 @@ public class PollController {
 
     }
 
+    @PatchMapping("/{pollId}/close")
+    public ResponseEntity<PollResponse> closePoll(@PathVariable Long pollId,
+                                                  @PathVariable Long sessionId) {
+        PollResponse pollResponse = pollService.closePoll(pollId, sessionId);
+
+        return ResponseEntity.ok(pollResponse);
+
+    }
+
     @PostMapping("/{pollId}/vote/{optionId}")
     public ResponseEntity<PollResponse> voteOnPoll(@PathVariable Long pollId,
                                                    @PathVariable Long sessionId,
@@ -42,6 +51,15 @@ public class PollController {
         PollResponse pollResponse = pollService.voteOnPoll(pollId, sessionId, optionId);
 
         return ResponseEntity.ok(pollResponse);
+
+    }
+
+    @DeleteMapping("/{pollId}")
+    public ResponseEntity<Void> deletePoll(@PathVariable Long pollId,
+                                           @PathVariable Long sessionId) {
+        pollService.deletePoll(pollId, sessionId);
+
+        return ResponseEntity.noContent().build();
 
     }
 }

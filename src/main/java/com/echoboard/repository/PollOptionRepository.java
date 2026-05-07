@@ -8,4 +8,6 @@ import java.util.List;
 public interface PollOptionRepository extends JpaRepository<PollOption, Long> {
 
     List<PollOption> findByPoll_Id(Long pollId);
+
+    void deleteByPoll_Id(Long pollId);
 }
