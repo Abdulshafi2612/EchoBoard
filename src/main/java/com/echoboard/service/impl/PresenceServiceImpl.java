@@ -9,11 +9,11 @@ import com.echoboard.exception.ErrorCode;
 import com.echoboard.service.PresenceService;
 import com.echoboard.service.SessionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Duration;
 
 import static com.echoboard.enums.PresenceEventType.JOINED;
 import static com.echoboard.enums.PresenceEventType.LEFT;
@@ -25,41 +25,72 @@ import static org.springframework.http.HttpStatus.*;
 @RequiredArgsConstructor
 public class PresenceServiceImpl implements PresenceService {
 
-    private final Map<Long, Integer> onlineCounts = new ConcurrentHashMap<>();
-    private final Map<String, Long> webSocketSessionToSessionId = new ConcurrentHashMap<>();
+    private static final String PRESENCE_COUNT_KEY_TEMPLATE = "presence:session:%d:count";
+    private static final String PRESENCE_WEBSOCKET_SESSION_KEY_TEMPLATE = "presence:ws:%s";
+    private static final Duration PRESENCE_SESSION_TTL = Duration.ofSeconds(30);
 
     private final SimpMessagingTemplate messagingTemplate;
     private final SessionService sessionService;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public void join(Long sessionId, String webSocketSessionId, String tokenType, Long tokenSessionId) {
-        if (webSocketSessionToSessionId.containsKey(webSocketSessionId)) {
+
+        if (redisTemplate
+                .opsForValue()
+                .get(PRESENCE_WEBSOCKET_SESSION_KEY_TEMPLATE.formatted(webSocketSessionId))
+                != null
+        ) {
             return;
         }
 
         validateLiveSession(sessionId);
         validatePresenceAccess(sessionId, tokenType, tokenSessionId);
 
-        webSocketSessionToSessionId.put(webSocketSessionId, sessionId);
 
-        int count = onlineCounts.merge(sessionId, 1, Integer::sum);
-        broadcastPresenceEvent(sessionId, count, JOINED);
+        String webSocketPresenceKey = PRESENCE_WEBSOCKET_SESSION_KEY_TEMPLATE.formatted(webSocketSessionId);
+
+
+        redisTemplate.opsForValue().set(
+                webSocketPresenceKey,
+                String.valueOf(sessionId),
+                PRESENCE_SESSION_TTL
+        );
+
+        String presenceCountKey = PRESENCE_COUNT_KEY_TEMPLATE.formatted(sessionId);
+
+        Long count = redisTemplate.opsForValue().increment(presenceCountKey);
+
+        if (count == null) {
+            return;
+        }
+
+        broadcastPresenceEvent(sessionId, count.intValue(), JOINED);
     }
 
     @Override
     public void leave(String webSocketSessionId) {
-        Long sessionId = webSocketSessionToSessionId.remove(webSocketSessionId);
-        if (sessionId == null) {
+        String webSocketPresenceKey = PRESENCE_WEBSOCKET_SESSION_KEY_TEMPLATE.formatted(webSocketSessionId);
+
+        String cachedSessionId = redisTemplate.opsForValue().get(webSocketPresenceKey);
+
+        if (cachedSessionId == null) {
             return;
         }
 
-        Integer count = onlineCounts.computeIfPresent(sessionId, (key, currentCount) -> {
-            int newCount = currentCount - 1;
-            return newCount <= 0 ? null : newCount;
-        });
+        redisTemplate.delete(webSocketPresenceKey);
 
-        count = count == null ? 0 : count;
-        broadcastPresenceEvent(sessionId, count, LEFT);
+        Long sessionId = Long.valueOf(cachedSessionId);
+        String presenceCountKey = PRESENCE_COUNT_KEY_TEMPLATE.formatted(sessionId);
+
+        Long count = redisTemplate.opsForValue().decrement(presenceCountKey);
+
+        if (count == null || count <= 0) {
+            redisTemplate.delete(presenceCountKey);
+            count = 0L;
+        }
+
+        broadcastPresenceEvent(sessionId, count.intValue(), LEFT);
     }
 
     @Override
