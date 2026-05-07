@@ -14,4 +14,5 @@ public interface PollService {
     PollResponse voteOnPoll(Long pollId, Long sessionId, Long optionId);
 
     void deletePoll(Long pollId, Long sessionId);
+
 }

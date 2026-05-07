@@ -46,6 +46,7 @@ public class PollServiceImpl implements PollService {
     private final SessionService sessionService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ParticipantService participantService;
+    private final PollOptionCountCacheService pollOptionCountCacheService;
 
     @Override
     public PollResponse submitDraftPoll(CreatePollRequest request, Long sessionId) {
@@ -100,9 +101,15 @@ public class PollServiceImpl implements PollService {
         validatePollOptionBelongsToPoll(pollOption, poll);
 
         validateParticipantHasNotVotedBefore(participantId, pollId);
-
         savePollVote(participant, poll, pollOption);
-        PollOption savedPollOption = incrementPollOptionVoteCount(pollOption);
+
+        pollOptionCountCacheService.incrementPollOptionCount(
+                poll.getId(),
+                pollOption.getId(),
+                pollOption.getVoteCount()
+        );
+
+        incrementPollOptionVoteCount(pollOption);
 
         List<PollOption> pollOptions = getPollOptions(poll.getId());
         PollResponse response = buildPollResponse(poll, pollOptions);
@@ -126,6 +133,7 @@ public class PollServiceImpl implements PollService {
         pollOptionRepository.deleteByPoll_Id(pollId);
         pollRepository.delete(poll);
     }
+
 
     private PollResponse changePollStatus(
             Long pollId,
@@ -208,6 +216,16 @@ public class PollServiceImpl implements PollService {
 
     private PollResponse buildPollResponse(Poll poll, List<PollOption> options) {
         List<PollOptionResponse> optionResponses = pollMapper.pollOptionsToPollOptionResponses(options);
+
+        optionResponses.forEach(optionResponse -> {
+            int redisVoteCount = pollOptionCountCacheService.getPollOptionCount(
+                    poll.getId(),
+                    optionResponse.getId(),
+                    optionResponse.getVoteCount()
+            );
+
+            optionResponse.setVoteCount(redisVoteCount);
+        });
 
         return pollMapper.pollToPollResponse(poll, optionResponses);
     }
