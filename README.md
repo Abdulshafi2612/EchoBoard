@@ -4,7 +4,7 @@
 
 ### Real-time Q&A, live polling, moderation, and audience presence for interactive sessions
 
-Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Documented with **Swagger/OpenAPI**
+Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Redis-backed rate limiting, caching, presence, and poll counters · Documented with **Swagger/OpenAPI**
 
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -14,9 +14,8 @@ Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** 
 [![Swagger](https://img.shields.io/badge/Swagger-OpenAPI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](https://swagger.io/)
 [![Maven](https://img.shields.io/badge/Maven-Build-C71A36?style=for-the-badge&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 [![Actuator](https://img.shields.io/badge/Actuator-Health%20Checks-6DB33F?style=for-the-badge)](https://docs.spring.io/spring-boot/reference/actuator/index.html)
-[![Redis](https://img.shields.io/badge/Redis-Planned-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
-[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-Planned-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
-
+[![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
 </div>
 
 ---
@@ -27,7 +26,7 @@ Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** 
 
 A presenter creates a live session, shares a short access code with the audience, and participants can join without creating full user accounts. During the session, participants can submit questions, upvote approved questions, vote on live polls, and appear in live presence counts. Presenters manage the session lifecycle, moderate questions, publish polls, and receive real-time updates through WebSocket/STOMP topics.
 
-The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, and a roadmap for Redis, RabbitMQ, Docker, analytics, and integration testing.
+The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, Redis-backed rate limiting/caching/presence/poll counters, and a roadmap for RabbitMQ, Docker, analytics, and integration testing.
 
 Think of it as a backend-focused simplified version of **Slido** or **Mentimeter**, built to showcase real-time backend engineering rather than frontend screens.
 
@@ -46,7 +45,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Production API | `TODO` | Upcoming |
 | Docker Compose | `TODO` | Planned |
 
-> Production deployment, Docker Compose, Redis, RabbitMQ, CI, and full observability are planned roadmap items, not completed features in the current snapshot.
+> Production deployment, Docker Compose, RabbitMQ, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is now implemented for rate limiting, access-code caching, presence tracking, and poll option counters.
 
 ---
 
@@ -64,6 +63,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 - [Question Moderation Workflow](#-question-moderation-workflow)
 - [Upvote and Duplicate Prevention](#-upvote-and-duplicate-prevention)
 - [Live Polls Workflow](#-live-polls-workflow)
+- [Redis Usage and Key Design](#-redis-usage-and-key-design)
 - [WebSocket Topics and Events](#-websocket-topics-and-events)
 - [API Endpoints](#-api-endpoints)
 - [Example API Requests & Responses](#-example-api-requests--responses)
@@ -144,6 +144,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 ### ❓ Questions and Moderation
 
 - Participants submit questions using REST commands with participant tokens
+- Redis rate limiting protects question submission from participant spam
 - Questions are persisted before any real-time broadcast
 - Moderation-enabled sessions create questions as `PENDING`
 - Moderation-disabled sessions create questions directly as `APPROVED`
@@ -161,6 +162,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 ### 👍 Question Upvotes
 
 - Participants can upvote approved questions
+- Redis rate limiting protects upvote requests from participant spam
 - Pending, hidden, or answered questions cannot be upvoted by the current implementation rules
 - A participant can upvote the same question only once
 - Duplicate upvotes are prevented by:
@@ -184,6 +186,25 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Poll results are updated and broadcast live after votes
 - Published polls can be closed by the owner
 - Only draft polls can be deleted
+
+### ⚡ Redis Features
+
+- Redis is integrated through Spring Data Redis and `StringRedisTemplate`
+- Participant-scoped rate limiting is applied to:
+  - question submissions
+  - question upvote requests
+- Rate limiting uses atomic Redis counters with TTL windows
+- Session access-code lookups use cache-aside caching:
+  - Redis stores `accessCode -> sessionId`
+  - PostgreSQL remains the source of truth
+  - cached entries use TTL to avoid stale mappings
+- Presence tracking uses Redis counters and WebSocket session keys:
+  - Redis stores online counts per session
+  - Redis stores WebSocket session keys with TTL
+  - leave/disconnect cleanup decrements counts and removes session keys
+- Poll option vote counters are maintained in Redis for live results
+- Poll counter reads fall back to PostgreSQL counts when Redis does not have a value
+- Redis key design is documented in the README
 
 ### 🛡️ Error Handling
 
@@ -221,7 +242,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Participant JWT tokens | ✅ Implemented | Limited participant tokens with session-scoped claims |
 | WebSocket endpoint | ✅ Implemented | `/ws` with SockJS and STOMP |
 | WebSocket auth | ✅ Implemented | Access and participant tokens accepted; refresh rejected |
-| Presence | ✅ Implemented | In-memory single-instance presence counts |
+| Presence | ✅ Implemented | Redis-backed presence counters and WebSocket session keys |
 | Questions | ✅ Implemented | Submit, approve, hide, pin, unpin, answer, delete |
 | Question upvotes | ✅ Implemented | Duplicate prevention with service check + DB constraint |
 | Polls | ✅ Implemented | Draft, publish, vote, close, delete draft |
@@ -229,9 +250,9 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Global exception handling | ✅ Implemented | App errors, validation errors, integrity conflicts |
 | Swagger/OpenAPI | ✅ Configured | Springdoc dependencies and Swagger UI path |
 | Actuator | ✅ Configured | Health/info exposed |
-| Redis | 🟡 Planned | Dependency currently commented out |
+| Redis | ✅ Implemented | Rate limiting, access-code cache, presence tracking, poll option counters |
 | RabbitMQ | 🟡 Planned | Runtime dependency currently commented out |
-| Docker Compose | 🟡 Planned | Not included in current snapshot |
+| Docker Compose | 🟡 Planned | Redis is currently run locally through Docker; full app compose is planned |
 | Analytics / CSV export | 🟡 Planned | Not implemented yet |
 | Scheduled jobs | 🟡 Planned | Not implemented yet |
 | Integration tests | 🟡 Planned | Test dependencies exist; test classes were not included in the uploaded snapshot |
@@ -257,7 +278,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Monitoring Foundation | Spring Boot Actuator |
 | Build Tool | Maven |
 | Testing Dependencies | JUnit 5, Spring Security Test, Testcontainers |
-| Planned Cache / Rate Limiting | Redis |
+| Cache / Rate Limiting / Presence Counters | Redis |
 | Planned Async Processing | RabbitMQ |
 
 ---
@@ -285,7 +306,9 @@ Request DTOs, Response DTOs, WebSocket Events, MapStruct Mappers
       v
 Service Layer
 AuthService, SessionService, ParticipantService,
-QuestionService, PollService, PresenceService
+QuestionService, PollService, PresenceService,
+RateLimiterService, SessionAccessCodeCacheService,
+PollOptionCountCacheService
       |
       v
 Repository Layer
@@ -293,6 +316,13 @@ Spring Data JPA Repositories
       |
       v
 PostgreSQL Database
+
+Redis Layer
+RateLimiterService, SessionAccessCodeCacheService,
+PresenceService, PollOptionCountCacheService
+      |
+      v
+Redis
 ```
 
 ### Package Structure
@@ -591,7 +621,7 @@ Broadcast PUBLISHED PollEvent
 Participants vote with participant token
       |
       v
-Vote saved + option count incremented
+Vote saved + Redis option counter incremented + database count persisted
       |
       v
 Broadcast UPDATED PollEvent with live results
@@ -623,6 +653,118 @@ Broadcast CLOSED PollEvent
 ### Important Poll Note
 
 `MULTIPLE_CHOICE` exists as a poll type enum. However, the current vote model has a unique constraint on `(poll_id, participant_id)`, so each participant can currently submit only one vote per poll. Full multiple-choice behavior is a planned refinement.
+
+---
+
+## ⚡ Redis Usage and Key Design
+
+Redis is used for fast, temporary, high-frequency data that should not overload PostgreSQL. PostgreSQL remains the source of truth for durable business data such as users, sessions, participants, questions, polls, and votes.
+
+### Redis Responsibilities
+
+| Area | Purpose | Notes |
+|---|---|---|
+| Question submission rate limit | Prevent participant question spam | Uses participant-scoped counters with TTL |
+| Upvote request rate limit | Prevent high-frequency upvote spam | Uses participant-scoped counters with TTL |
+| Access-code cache | Reduce repeated session lookup by access code | Uses cache-aside pattern with PostgreSQL fallback |
+| Presence tracking | Track online WebSocket clients per session | Uses Redis counters and WebSocket session keys |
+| Poll option counters | Keep fast live poll vote counts | Uses Redis counters with PostgreSQL fallback |
+
+### Redis Key Design
+
+| Key Pattern | Example | Value | Expiration |
+|---|---|---|---|
+| `rate:participant:{participantId}:questions` | `rate:participant:15:questions` | request count | Yes, fixed rate-limit window |
+| `rate:participant:{participantId}:votes` | `rate:participant:15:votes` | request count | Yes, fixed rate-limit window |
+| `session:code:{accessCode}` | `session:code:X7K29A` | session id | Yes, cache TTL |
+| `presence:session:{sessionId}:count` | `presence:session:7:count` | online count | Deleted when count reaches zero |
+| `presence:ws:{webSocketSessionId}` | `presence:ws:abc123` | session id | Yes, WebSocket presence TTL |
+| `poll:{pollId}:option:{optionId}:count` | `poll:5:option:20:count` | option vote count | No short TTL; cleaned by lifecycle/sync later |
+
+### Cache-Aside Access-Code Lookup
+
+```text
+Participant joins with access code
+      |
+      v
+Check Redis: session:code:{accessCode}
+      |
+      +--> Cache hit: use cached session id, then load session from PostgreSQL
+      |
+      +--> Cache miss: query PostgreSQL by access code, then cache session id in Redis
+```
+
+Redis is not treated as the source of truth. A missing Redis key does not mean the session does not exist; it only means the cache missed.
+
+### Rate Limiting Flow
+
+```text
+Participant action
+      |
+      v
+Build participant/action Redis key
+      |
+      v
+Increment Redis counter atomically
+      |
+      v
+Set TTL on first request in the window
+      |
+      v
+Allow request if counter <= limit, otherwise return 429 RATE_LIMIT_EXCEEDED
+```
+
+### Presence Flow
+
+```text
+WebSocket presence join
+      |
+      v
+Store presence:ws:{webSocketSessionId} -> sessionId with TTL
+      |
+      v
+Increment presence:session:{sessionId}:count
+      |
+      v
+Broadcast JOINED presence event
+
+WebSocket leave/disconnect
+      |
+      v
+Read presence:ws:{webSocketSessionId}
+      |
+      v
+Delete WebSocket presence key
+      |
+      v
+Decrement presence count
+      |
+      v
+Broadcast LEFT presence event
+```
+
+### Poll Counter Flow
+
+```text
+Participant votes on poll option
+      |
+      v
+Validate participant, poll, option, and duplicate vote
+      |
+      v
+Save PollVote in PostgreSQL
+      |
+      v
+Initialize Redis option counter from DB count if missing
+      |
+      v
+Increment Redis option counter
+      |
+      v
+Persist/update PostgreSQL count and broadcast updated poll results
+```
+
+Poll counters do not use a short TTL because they represent live poll results that should remain available while the poll/session is active. Later scheduled jobs can sync and clean these counters.
 
 ---
 
@@ -1331,6 +1473,7 @@ Errors use a consistent response model.
 | `INVALID_QUESTION_STATUS` | Question state does not allow the action |
 | `INVALID_POLL_STATUS` | Poll state does not allow the action |
 | `DUPLICATE_RESOURCE` | Unique constraint or duplicate action conflict |
+| `RATE_LIMIT_EXCEEDED` | Participant exceeded a Redis-backed rate limit window |
 | `INTERNAL_SERVER_ERROR` | Unexpected server error |
 
 ---
@@ -1384,6 +1527,7 @@ No dedicated test classes were included in the uploaded project snapshot. The pr
 - Java 21+
 - Maven or Maven Wrapper
 - PostgreSQL 14+
+- Redis running locally on port 6379
 - Git
 
 ### 1. Clone the Repository
@@ -1420,6 +1564,9 @@ JWT_SECRET=replace-with-a-long-secret-key-at-least-32-characters
 JWT_ACCESS_TOKEN_EXPIRATION_MS=900000
 JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
 JWT_PARTICIPANT_TOKEN_EXPIRATION_MS=43200000
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
 ### 4. Run the Application
@@ -1472,6 +1619,9 @@ spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.format_sql=true
 spring.jpa.open-in-view=false
 
+spring.data.redis.host=${REDIS_HOST}
+spring.data.redis.port=${REDIS_PORT}
+
 management.endpoints.web.exposure.include=health,info
 management.endpoint.health.show-details=always
 
@@ -1496,6 +1646,8 @@ app.jwt.participant-token-expiration-ms=${JWT_PARTICIPANT_TOKEN_EXPIRATION_MS}
 | `JWT_ACCESS_TOKEN_EXPIRATION_MS` | Access token lifetime in milliseconds |
 | `JWT_REFRESH_TOKEN_EXPIRATION_MS` | Refresh token lifetime in milliseconds |
 | `JWT_PARTICIPANT_TOKEN_EXPIRATION_MS` | Participant token lifetime in milliseconds |
+| `REDIS_HOST` | Redis host |
+| `REDIS_PORT` | Redis port |
 
 > Never commit real database passwords, JWT secrets, access tokens, refresh tokens, participant tokens, or production credentials.
 
@@ -1547,8 +1699,8 @@ poll_votes
 | MapStruct mapping | Reduces boilerplate while keeping mapping type-safe |
 | PostgreSQL unique constraints | Adds a durable safety net for duplicate votes |
 | Refresh token persistence | Supports logout/revocation and refresh token rotation |
-| In-memory presence first | Simple MVP implementation before Redis-backed distributed presence |
-| Redis planned later | Useful for rate limiting, distributed presence, cached session codes, and high-frequency counters |
+| Redis-backed presence | Stores online counters and WebSocket session keys outside the application instance |
+| Redis for temporary fast data | Used for rate limiting, access-code caching, presence tracking, and poll option counters |
 | RabbitMQ planned later | Useful for async analytics, notifications, retries, and dead-letter queues |
 | Actuator included early | Provides a foundation for health checks and monitoring |
 
@@ -1571,14 +1723,17 @@ No screenshots or demo GIFs were included in the current snapshot. Add them late
 
 ## 🔮 Roadmap
 
-### Redis Roadmap
+### Redis Status
 
-- Rate limit question submissions and votes
-- Rate limit login attempts
-- Store distributed presence with TTL
-- Cache session access-code lookups
-- Maintain high-frequency poll counters in Redis
-- Periodically sync counters back to PostgreSQL
+- Question submission rate limiting is implemented
+- Upvote request rate limiting is implemented
+- Session access-code caching is implemented
+- Redis-backed presence counters and WebSocket session keys are implemented
+- Redis poll option counters are implemented
+- Future Redis improvements:
+  - rate limit login attempts
+  - add scheduled Redis poll counter sync to PostgreSQL
+  - add deeper heartbeat/reconciliation for presence expiration edge cases
 
 ### RabbitMQ Roadmap
 
@@ -1626,15 +1781,18 @@ No screenshots or demo GIFs were included in the current snapshot. Add them late
 - Building DTO-based API contracts with MapStruct
 - Creating consistent error responses with `@RestControllerAdvice`
 - Using PostgreSQL relationships and constraints for domain integrity
-- Preparing a project roadmap for Redis, RabbitMQ, Docker, CI, and Testcontainers
+- Using Redis for TTL-based rate limiting with atomic counters
+- Implementing cache-aside access-code lookup while keeping PostgreSQL as the source of truth
+- Moving live presence tracking from memory to Redis counters and WebSocket session keys
+- Maintaining Redis poll option counters with database fallback behavior
+- Preparing a project roadmap for RabbitMQ, Docker, CI, and Testcontainers
 
 ---
 
 ## 📝 Notes / Current Status
 
 - The current implementation uses REST endpoints for question and poll commands, then broadcasts updates through WebSocket topics.
-- Presence is currently stored in memory using concurrent maps, so it is suitable for a single application instance only.
-- Redis-backed distributed presence is planned but not implemented yet.
+- Presence is Redis-backed using session counters and WebSocket session keys with TTL foundation.
 - RabbitMQ async processing is planned but not implemented yet.
 - Poll `MULTIPLE_CHOICE` exists as an enum, but the current database constraint allows only one vote per participant per poll.
 - A separate moderator entity/assignment workflow is not implemented yet; moderation is currently owner-only.
