@@ -22,6 +22,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -38,6 +39,9 @@ public class QuestionServiceImpl implements QuestionService {
 
     private static final String QUESTIONS_TOPIC_TEMPLATE = "/topic/sessions/%d/questions";
     private static final String PENDING_QUESTIONS_TOPIC_TEMPLATE = "/topic/sessions/%d/questions/pending";
+    private static final String PARTICIPANT_RATE_LIMIT_KEY_TEMPLATE = "rate:participant:%d:%s";
+    private static final int PARTICIPANT_ACTION_MAX_REQUESTS = 5;
+    private static final Duration PARTICIPANT_ACTION_RATE_LIMIT_WINDOW = Duration.ofSeconds(60);
 
     private final QuestionRepository questionRepository;
     private final SessionService sessionService;
@@ -47,6 +51,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final CurrentParticipantService currentParticipantService;
     private final CurrentUserService currentUserService;
     private final QuestionVoteRepository questionVoteRepository;
+    private final RateLimiterService rateLimiterService;
 
     @Override
     public PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(
@@ -93,6 +98,21 @@ public class QuestionServiceImpl implements QuestionService {
         validateParticipantBelongsToSession(participant, sessionId);
         validateParticipantIsNotMuted(participant);
 
+        String rateLimitKey = PARTICIPANT_RATE_LIMIT_KEY_TEMPLATE.formatted(participantId, "questions");
+
+        boolean isAllowed = rateLimiterService.isAllowed(
+                rateLimitKey,
+                PARTICIPANT_ACTION_MAX_REQUESTS,
+                PARTICIPANT_ACTION_RATE_LIMIT_WINDOW
+        );
+
+        if (!isAllowed) {
+            throw new AppException(
+                    RATE_LIMIT_EXCEEDED,
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many questions. Please wait before submitting again."
+            );
+        }
         Question question = createQuestion(session, participant, request.getContent());
         Question savedQuestion = questionRepository.save(question);
 
@@ -174,6 +194,22 @@ public class QuestionServiceImpl implements QuestionService {
         validateParticipantBelongsToSession(participant, sessionId);
         validateParticipantIsNotMuted(participant);
 
+
+        String rateLimitKey = PARTICIPANT_RATE_LIMIT_KEY_TEMPLATE.formatted(participantId, "votes");
+        boolean isAllowed = rateLimiterService.isAllowed(
+                rateLimitKey,
+                PARTICIPANT_ACTION_MAX_REQUESTS,
+                PARTICIPANT_ACTION_RATE_LIMIT_WINDOW
+        );
+
+        if (!isAllowed) {
+            throw new AppException(
+                    RATE_LIMIT_EXCEEDED,
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many upvote requests. Please wait before trying again."
+            );
+        }
+
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new AppException(
                         RESOURCE_NOT_FOUND,
@@ -183,6 +219,7 @@ public class QuestionServiceImpl implements QuestionService {
 
         validateQuestionBelongsToSession(question, sessionId);
         validateQuestionIsApproved(question);
+
 
         if (questionVoteRepository.existsByParticipant_IdAndQuestion_Id(participantId, questionId)) {
             throw new AppException(
