@@ -8,28 +8,27 @@ import com.echoboard.exception.AppException;
 import com.echoboard.exception.ErrorCode;
 import com.echoboard.mapper.ParticipantMapper;
 import com.echoboard.repository.ParticipantRepository;
-import com.echoboard.repository.SessionRepository;
 import com.echoboard.security.JwtService;
 import com.echoboard.service.ParticipantService;
+import com.echoboard.service.SessionAccessCodeCacheService;
+import com.echoboard.service.SessionService;
 import com.echoboard.util.TokenHashUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import static com.echoboard.enums.SessionStatus.LIVE;
-import static com.echoboard.exception.ErrorCode.RESOURCE_NOT_FOUND;
 import static com.echoboard.exception.ErrorCode.VALIDATION_ERROR;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
 public class ParticipantServiceImpl implements ParticipantService {
 
     private final ParticipantRepository participantRepository;
-    private final SessionRepository sessionRepository;
     private final ParticipantMapper participantMapper;
     private final JwtService jwtService;
+    private final SessionAccessCodeCacheService sessionAccessCodeCacheService;
 
     @Override
     @Transactional
@@ -37,12 +36,8 @@ public class ParticipantServiceImpl implements ParticipantService {
         String accessCode = request.getAccessCode().trim().toUpperCase();
         Participant participant = participantMapper.joinParticipantRequestToParticipant(request);
 
-        Session session = sessionRepository.findByAccessCode(accessCode)
-                .orElseThrow(() ->
-                        new AppException(
-                                RESOURCE_NOT_FOUND,
-                                NOT_FOUND,
-                                "Invalid access code"));
+        Session session = sessionAccessCodeCacheService
+                .getSessionByAccessCode(accessCode);
 
         if (session.getStatus() != LIVE) {
             throw new AppException(

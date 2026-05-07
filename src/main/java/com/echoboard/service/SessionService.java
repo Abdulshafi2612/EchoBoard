@@ -17,6 +17,8 @@ public interface SessionService {
 
     Session getSessionById(Long id);
 
+    Session getSessionByAccessCode(String accessCode);
+
     SessionResponse updateSession(Long id, UpdateSessionRequest request);
 
     SessionResponse startSession(Long id);

@@ -92,6 +92,17 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    public Session getSessionByAccessCode(String accessCode) {
+        return sessionRepository
+                .findByAccessCode(accessCode).
+                orElseThrow(()-> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Invalid access code"
+                ));
+    }
+
+    @Override
     public SessionResponse updateSession(Long id, UpdateSessionRequest request) {
         Session session = getOwnedSessionOrThrow(id);
         if (session.getStatus() == ENDED || session.getStatus() == ARCHIVED) {
