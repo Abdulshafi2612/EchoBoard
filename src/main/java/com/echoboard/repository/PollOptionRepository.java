@@ -1,6 +1,7 @@
 package com.echoboard.repository;
 
 import com.echoboard.entity.PollOption;
+import com.echoboard.enums.PollStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -10,4 +11,6 @@ public interface PollOptionRepository extends JpaRepository<PollOption, Long> {
     List<PollOption> findByPoll_Id(Long pollId);
 
     void deleteByPoll_Id(Long pollId);
+
+    List<PollOption> findByPoll_Status(PollStatus status);
 }

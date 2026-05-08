@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.echoboard.enums.PollEventType.UPDATED;
@@ -109,8 +110,6 @@ public class PollServiceImpl implements PollService {
                 pollOption.getVoteCount()
         );
 
-        incrementPollOptionVoteCount(pollOption);
-
         List<PollOption> pollOptions = getPollOptions(poll.getId());
         PollResponse response = buildPollResponse(poll, pollOptions);
 
@@ -159,6 +158,7 @@ public class PollServiceImpl implements PollService {
 
         if (PollStatus.CLOSED.equals(targetStatus)) {
             poll.setClosedAt(LocalDateTime.now());
+            syncPollCounts(poll.getId());
         }
 
         Poll savedPoll = pollRepository.save(poll);
@@ -208,11 +208,6 @@ public class PollServiceImpl implements PollService {
         pollVoteRepository.save(pollVote);
     }
 
-    private PollOption incrementPollOptionVoteCount(PollOption pollOption) {
-        pollOption.setVoteCount(pollOption.getVoteCount() + 1);
-
-        return pollOptionRepository.save(pollOption);
-    }
 
     private PollResponse buildPollResponse(Poll poll, List<PollOption> options) {
         List<PollOptionResponse> optionResponses = pollMapper.pollOptionsToPollOptionResponses(options);
@@ -286,15 +281,6 @@ public class PollServiceImpl implements PollService {
         }
     }
 
-    private void validatePollIsDraft(Poll poll) {
-        if (!DRAFT.equals(poll.getStatus())) {
-            throw new AppException(
-                    INVALID_POLL_STATUS,
-                    BAD_REQUEST,
-                    "Only draft polls can be published"
-            );
-        }
-    }
 
     private void validatePollIsPublished(Poll poll) {
         if (!PollStatus.PUBLISHED.equals(poll.getStatus())) {
@@ -418,5 +404,30 @@ public class PollServiceImpl implements PollService {
         event.setEventType(eventType);
 
         return event;
+    }
+
+    private void syncPollCounts(Long pollId) {
+        List<PollOption> options = pollOptionRepository.findByPoll_Id(pollId);
+        List<PollOption> updatedOptions = new ArrayList<>();
+
+        for (PollOption option : options) {
+            Integer redisCount = pollOptionCountCacheService.getCachedPollOptionCount(
+                    pollId,
+                    option.getId()
+            );
+
+            if (redisCount == null) {
+                continue;
+            }
+
+            if (option.getVoteCount() != redisCount) {
+                option.setVoteCount(redisCount);
+                updatedOptions.add(option);
+            }
+        }
+
+        if (!updatedOptions.isEmpty()) {
+            pollOptionRepository.saveAll(updatedOptions);
+        }
     }
 }

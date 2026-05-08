@@ -37,4 +37,17 @@ public class PollOptionCountCacheServiceImpl implements PollOptionCountCacheServ
 
         return Integer.parseInt(value);
     }
+
+    @Override
+    public Integer getCachedPollOptionCount(Long pollId, Long pollOptionId) {
+        String pollOptionCountKey = POLL_OPTION_COUNT_CACHE_KEY_TEMPLATE.formatted(pollId, pollOptionId);
+
+        String value = redisTemplate.opsForValue().get(pollOptionCountKey);
+
+        if (value == null) {
+            return null;
+        }
+
+        return Integer.parseInt(value);
+    }
 }
