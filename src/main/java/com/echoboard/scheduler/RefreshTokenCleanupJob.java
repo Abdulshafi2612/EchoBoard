@@ -18,13 +18,19 @@ public class RefreshTokenCleanupJob {
 
     @Transactional
     @Scheduled(cron = "0 0 3 * * *")
-    public void deleteExpiredRefreshTokens() {
+    public void cleanupRefreshTokens() {
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime revokedTokenCutoff = now.minusDays(7);
 
-        long deletedCount = refreshTokenRepository.deleteByExpiresAtBefore(now);
+        long expiredDeletedCount = refreshTokenRepository.deleteByExpiresAtBefore(now);
+        long revokedDeletedCount = refreshTokenRepository.deleteByRevokedTrueAndCreatedAtBefore(revokedTokenCutoff);
 
-        if (deletedCount > 0) {
-            log.info("Deleted {} expired refresh tokens", deletedCount);
+        if (expiredDeletedCount > 0 || revokedDeletedCount > 0) {
+            log.info(
+                    "Refresh token cleanup completed. expiredDeleted={}, revokedDeleted={}",
+                    expiredDeletedCount,
+                    revokedDeletedCount
+            );
         }
     }
 }
