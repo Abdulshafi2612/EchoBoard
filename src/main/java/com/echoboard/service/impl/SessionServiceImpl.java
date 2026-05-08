@@ -1,6 +1,7 @@
 package com.echoboard.service.impl;
 
 import com.echoboard.dto.common.PageResponse;
+import com.echoboard.dto.rabbitmq.SessionCreatedEvent;
 import com.echoboard.dto.session.CreateSessionRequest;
 import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.dto.session.UpdateSessionRequest;
@@ -12,6 +13,7 @@ import com.echoboard.mapper.SessionMapper;
 import com.echoboard.repository.SessionRepository;
 import com.echoboard.service.CurrentUserService;
 import com.echoboard.service.SessionService;
+import com.echoboard.rabbitmq.RabbitMQPublisher;
 import com.echoboard.util.AccessCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -33,6 +35,7 @@ public class SessionServiceImpl implements SessionService {
     private final SessionRepository sessionRepository;
     private final SessionMapper sessionMapper;
     private final CurrentUserService currentUserService;
+    private final RabbitMQPublisher rabbitMQPublisherService;
 
 
     @Override
@@ -53,6 +56,17 @@ public class SessionServiceImpl implements SessionService {
         );
 
         Session savedSession = sessionRepository.save(session);
+
+        SessionCreatedEvent sessionCreatedEvent = SessionCreatedEvent
+                .builder()
+                .sessionId(savedSession.getId())
+                .title(savedSession.getTitle())
+                .createdAt(savedSession.getCreatedAt())
+                .ownerId(user.getId())
+                .ownerEmail(user.getEmail())
+                .build();
+
+        rabbitMQPublisherService.publishSessionCreatedEvent(sessionCreatedEvent);
 
         return sessionMapper.sessionToSessionResponse(savedSession);
     }
@@ -95,7 +109,7 @@ public class SessionServiceImpl implements SessionService {
     public Session getSessionByAccessCode(String accessCode) {
         return sessionRepository
                 .findByAccessCode(accessCode).
-                orElseThrow(()-> new AppException(
+                orElseThrow(() -> new AppException(
                         RESOURCE_NOT_FOUND,
                         NOT_FOUND,
                         "Invalid access code"
