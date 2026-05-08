@@ -3,6 +3,7 @@ package com.echoboard.rabbitmq;
 import com.echoboard.config.RabbitMQConfig;
 import com.echoboard.dto.rabbitmq.SessionEndedEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 

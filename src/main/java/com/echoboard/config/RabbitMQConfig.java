@@ -1,9 +1,6 @@
 package com.echoboard.config;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +13,9 @@ public class RabbitMQConfig {
     public static final String EMAIL_SESSION_CREATED_ROUTING_KEY = "email.session.created";
     public static final String ANALYTICS_QUEUE = "analytics.queue";
     public static final String ANALYTICS_SESSION_ENDED_ROUTING_KEY = "analytics.session.ended";
+    public static final String ECHOBOARD_DLX = "echoboard.dlx";
+    public static final String ANALYTICS_DLQ = "analytics.dlq";
+    public static final String ANALYTICS_DLQ_ROUTING_KEY = "analytics.dlq";
 
     @Bean
     public TopicExchange echoboardExchange() {
@@ -29,7 +29,29 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue analyticsQueue() {
-        return new Queue(ANALYTICS_QUEUE);
+        return QueueBuilder
+                .durable(ANALYTICS_QUEUE)
+                .deadLetterExchange(ECHOBOARD_DLX)
+                .deadLetterRoutingKey(ANALYTICS_DLQ_ROUTING_KEY)
+                .build();
+    }
+
+    @Bean
+    public DirectExchange echoboardDlx() {
+        return new DirectExchange(ECHOBOARD_DLX);
+    }
+
+    @Bean
+    public Queue analyticsDlq() {
+        return new Queue(ANALYTICS_DLQ);
+    }
+
+    @Bean
+    public Binding analyticsDlqBinding(Queue analyticsDlq, DirectExchange echoboardDlx) {
+        return BindingBuilder
+                .bind(analyticsDlq)
+                .to(echoboardDlx)
+                .with(ANALYTICS_DLQ_ROUTING_KEY);
     }
 
     @Bean
