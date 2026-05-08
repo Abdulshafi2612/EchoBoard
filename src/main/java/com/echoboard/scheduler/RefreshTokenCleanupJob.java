@@ -12,11 +12,11 @@ import java.time.LocalDateTime;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Transactional
 public class RefreshTokenCleanupJob {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    @Transactional
     @Scheduled(cron = "0 0 3 * * *")
     public void cleanupRefreshTokens() {
         LocalDateTime now = LocalDateTime.now();
