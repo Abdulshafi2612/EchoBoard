@@ -14,6 +14,8 @@ public class RabbitMQConfig {
     public static final String ECHOBOARD_EXCHANGE = "echoboard.exchange";
     public static final String EMAIL_QUEUE = "email.queue";
     public static final String EMAIL_SESSION_CREATED_ROUTING_KEY = "email.session.created";
+    public static final String ANALYTICS_QUEUE = "analytics.queue";
+    public static final String ANALYTICS_SESSION_ENDED_ROUTING_KEY = "analytics.session.ended";
 
     @Bean
     public TopicExchange echoboardExchange() {
@@ -26,12 +28,26 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue analyticsQueue() {
+        return new Queue(ANALYTICS_QUEUE);
+    }
+
+    @Bean
     public Binding emailSessionCreatedBinding(Queue emailQueue, TopicExchange echoboardExchange) {
         return BindingBuilder
                 .bind(emailQueue)
                 .to(echoboardExchange)
                 .with(EMAIL_SESSION_CREATED_ROUTING_KEY);
     }
+
+    @Bean
+    public Binding analyticsSessionEndedBinding(Queue analyticsQueue, TopicExchange echoboardExchange) {
+        return BindingBuilder
+                .bind(analyticsQueue)
+                .to(echoboardExchange)
+                .with(ANALYTICS_SESSION_ENDED_ROUTING_KEY);
+    }
+
 
     @Bean
     public Jackson2JsonMessageConverter jackson2JsonMessageConverter() {

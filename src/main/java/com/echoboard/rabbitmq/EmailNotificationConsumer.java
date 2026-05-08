@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 public class EmailNotificationConsumer {
 
     @RabbitListener(queues = RabbitMQConfig.EMAIL_QUEUE)
-    public void handleSessionCreatedEvent(SessionCreatedEvent event){
+    public void handleSessionCreatedEvent(SessionCreatedEvent event) {
         log.info(
                 "Mock email notification sent for created session. sessionId={}, title={}, ownerId={}, ownerEmail={}, createdAt={}",
                 event.getSessionId(),
@@ -20,6 +20,5 @@ public class EmailNotificationConsumer {
                 event.getOwnerEmail(),
                 event.getCreatedAt()
         );
-
     }
 }
