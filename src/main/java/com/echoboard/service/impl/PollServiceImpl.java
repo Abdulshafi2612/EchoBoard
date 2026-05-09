@@ -154,14 +154,6 @@ public class PollServiceImpl implements PollService {
                 .toList();
     }
 
-    @Override
-    public void syncPollCountersForSession(Long sessionId) {
-        List<Poll> polls = pollRepository.findBySession_IdOrderByCreatedAtAsc(sessionId);
-
-        for (Poll poll : polls) {
-            syncPollCounts(poll.getId());
-        }
-    }
     private PollAnalyticsResponse createPollAnalyticsResponse(Poll poll) {
         List<PollOption> options = pollOptionRepository.findByPoll_IdOrderByIdAsc(poll.getId());
 

@@ -38,6 +38,9 @@ public class Session {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @Column(name = "logo_url")
+    private String logoUrl;
+
     @Column(nullable = false)
     private boolean moderationEnabled = true;
 

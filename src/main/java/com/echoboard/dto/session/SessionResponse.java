@@ -32,6 +32,8 @@ public class SessionResponse {
 
     private Long ownerId;
 
+    private String logoUrl;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime startedAt;
