@@ -4,7 +4,7 @@
 
 ### Real-time Q&A, live polling, moderation, and audience presence for interactive sessions
 
-Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Redis-backed rate limiting, caching, presence, and poll counters · RabbitMQ-backed async mock email and analytics workflows · Documented with **Swagger/OpenAPI**
+Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Redis-backed rate limiting, caching, presence, and poll counters · RabbitMQ-backed async mock email and analytics workflows · Scheduled maintenance jobs · Documented with **Swagger/OpenAPI**
 
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -27,7 +27,7 @@ Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** 
 
 A presenter creates a live session, shares a short access code with the audience, and participants can join without creating full user accounts. During the session, participants can submit questions, upvote approved questions, vote on live polls, and appear in live presence counts. Presenters manage the session lifecycle, moderate questions, publish polls, and receive real-time updates through WebSocket/STOMP topics.
 
-The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, Redis-backed rate limiting/caching/presence/poll counters, RabbitMQ-backed asynchronous event processing with DLQ support, and a roadmap for scheduled jobs, Docker, analytics export, and integration testing.
+The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, Redis-backed rate limiting/caching/presence/live poll counters with scheduled PostgreSQL synchronization, RabbitMQ-backed asynchronous event processing with DLQ support, scheduled maintenance jobs, and a roadmap for Docker, analytics export, and integration testing.
 
 Think of it as a backend-focused simplified version of **Slido** or **Mentimeter**, built to showcase real-time backend engineering rather than frontend screens.
 
@@ -47,7 +47,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Production API | `TODO` | Upcoming |
 | Docker Compose | `TODO` | Planned |
 
-> Production deployment, Docker Compose, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is implemented for rate limiting, access-code caching, presence tracking, and poll option counters. RabbitMQ is implemented for asynchronous session-created and session-ended event flows with an analytics DLQ, while real email delivery, full analytics generation, retries with backoff, and DLQ reprocessing remain future improvements.
+> Production deployment, Docker Compose, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is implemented for rate limiting, access-code caching, presence tracking, and live poll option counters with scheduled PostgreSQL synchronization. RabbitMQ is implemented for asynchronous session-created and session-ended event flows with an analytics DLQ. Scheduled jobs are implemented for refresh token cleanup, long-running session auto-ending, old ended session archival, and Redis poll counter synchronization. Real email delivery, full analytics generation, retries with backoff, DLQ reprocessing, and advanced presence reconciliation remain future improvements.
 
 ---
 
@@ -67,6 +67,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 - [Live Polls Workflow](#-live-polls-workflow)
 - [Redis Usage and Key Design](#-redis-usage-and-key-design)
 - [RabbitMQ Async Processing](#-rabbitmq-async-processing)
+- [Scheduled Jobs and Maintenance](#-scheduled-jobs-and-maintenance)
 - [WebSocket Topics and Events](#-websocket-topics-and-events)
 - [API Endpoints](#-api-endpoints)
 - [Example API Requests & Responses](#-example-api-requests--responses)
@@ -206,7 +207,10 @@ EchoBoard is currently documented as a local backend project. No production depl
   - Redis stores WebSocket session keys with TTL
   - leave/disconnect cleanup decrements counts and removes session keys
 - Poll option vote counters are maintained in Redis for live results
-- Poll counter reads fall back to PostgreSQL counts when Redis does not have a value
+- Poll responses and WebSocket poll events read live counts from Redis with PostgreSQL fallback
+- Poll option `voteCount` is no longer updated on every vote; Redis serves live counts while PostgreSQL stores durable `PollVote` records
+- A scheduled job periodically syncs Redis poll option counters back to PostgreSQL snapshots
+- Closing a poll performs a final counter sync so closed poll results are persisted
 - Redis key design is documented in the README
 
 ### 🐇 RabbitMQ Async Processing
@@ -226,6 +230,19 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Failed analytics messages can be rejected without requeueing and routed to `analytics.dlq`
 - RabbitMQ failure behavior was manually tested with DLQ routing
 - Real email delivery, full analytics generation, retry backoff, idempotent consumers, and DLQ reprocessing are planned improvements
+
+### ⏰ Scheduled Jobs and Maintenance
+
+- Spring scheduling is enabled with `@EnableScheduling`
+- Expired refresh tokens are removed automatically
+- Revoked refresh tokens older than seven days are removed automatically
+- Live sessions running longer than 24 hours are automatically ended as a safety cleanup
+- Auto-ended sessions publish the same `SessionEndedEvent` used by manual session ending
+- Ended sessions older than 30 days are automatically archived
+- Redis live poll counters are synchronized back to PostgreSQL on a schedule
+- Final poll counter synchronization runs when a published poll is closed
+- Auto-end based on a user-defined scheduled end time is deferred until the product supports a `scheduledEndAt` style field
+- Presence reconciliation and Redis key cleanup are planned future improvements
 
 ### 🛡️ Error Handling
 
@@ -266,16 +283,16 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Presence | ✅ Implemented | Redis-backed counters and WebSocket session keys; heartbeat/reconciliation planned |
 | Questions | ✅ Implemented | Submit, approve, hide, pin, unpin, answer, delete |
 | Question upvotes | ✅ Implemented | Duplicate prevention with service check + DB constraint |
-| Polls | ✅ Implemented | Draft, publish, vote, close, delete draft |
+| Polls | ✅ Implemented | Draft, publish, vote, close, delete draft, Redis live counters with scheduled DB sync |
 | Poll duplicate votes | ✅ Implemented | Duplicate prevention with service check + DB constraint |
 | Global exception handling | ✅ Implemented | App errors, validation errors, integrity conflicts |
 | Swagger/OpenAPI | ✅ Configured | Springdoc dependencies and Swagger UI path |
 | Actuator | ✅ Configured | Health/info exposed |
-| Redis | ✅ Implemented | Rate limiting, access-code cache, presence tracking, poll option counters |
+| Redis | ✅ Implemented | Rate limiting, access-code cache, presence tracking, live poll counters, and scheduled counter sync |
 | RabbitMQ | ✅ Implemented | Async session-created mock email flow, session-ended mock analytics flow, JSON conversion, and analytics DLQ |
 | Docker Compose | 🟡 Planned | Redis and RabbitMQ are currently run locally through Docker; full app compose is planned |
 | Analytics / CSV export | 🟡 Planned | Not implemented yet |
-| Scheduled jobs | 🟡 Planned | Not implemented yet |
+| Scheduled jobs | ✅ Implemented | Refresh token cleanup, long-running session auto-end, old ended session archive, and Redis poll counter sync |
 | Integration tests | 🟡 Planned | Test dependencies exist; test classes were not included in the uploaded snapshot |
 
 ---
@@ -301,6 +318,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Testing Dependencies | JUnit 5, Spring Security Test, Testcontainers |
 | Cache / Rate Limiting / Presence Counters | Redis |
 | Async Processing | RabbitMQ, Spring AMQP |
+| Scheduling | Spring Scheduling (`@Scheduled`) |
 
 ---
 
@@ -329,7 +347,7 @@ Service Layer
 AuthService, SessionService, ParticipantService,
 QuestionService, PollService, PresenceService,
 RateLimiterService, SessionAccessCodeCacheService,
-PollOptionCountCacheService, RabbitMQPublisher
+PollOptionCountCacheService, PollCounterSyncService, RabbitMQPublisher
       |
       v
 Repository Layer
@@ -351,3 +369,10 @@ RabbitMQPublisher, EmailNotificationConsumer, AnalyticsConsumer
       v
 RabbitMQ
 echoboard.exchange, email.queue, analytics.queue, analytics.dlq
+
+Scheduler Layer
+RefreshTokenCleanupJob, SessionAutoEndJob, SessionArchiveJob, PollCounterSyncJob
+      |
+      v
+PostgreSQL + Redis + RabbitMQ
+```
