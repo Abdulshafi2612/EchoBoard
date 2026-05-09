@@ -4,6 +4,7 @@ import com.echoboard.dto.analytics.SessionAnalyticsResponse;
 import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.entity.Session;
 import com.echoboard.service.*;
+import com.echoboard.util.CsvExportUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public SessionAnalyticsResponse getSessionAnalytics(Long sessionId) {
 
         return createSessionAnalytics(sessionId);
+    }
+
+    @Override
+    public String exportCsvSessionQuestions(Long sessionId) {
+        sessionService.getOwnedSessionOrThrow(sessionId);
+        return CsvExportUtil
+                .toQuestionsCsv(questionService.getQuestionsForExportBySessionId(sessionId));
     }
 
     private SessionAnalyticsResponse createSessionAnalytics(Long sessionId) {

@@ -27,5 +27,7 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
             Collection<QuestionStatus> statuses
     );
 
+    List<Question> findBySession_IdOrderByCreatedAtAsc(Long sessionId);
+
 
 }

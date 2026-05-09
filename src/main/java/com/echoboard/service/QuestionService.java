@@ -31,4 +31,6 @@ public interface QuestionService {
     long getNumberOfQuestionsBySessionIdAndStatus(Long sessionId, QuestionStatus status);
 
     List<QuestionResponse> getTopUpvotedQuestionBySessionId(Long sessionId);
+
+    List<QuestionResponse> getQuestionsForExportBySessionId(Long sessionId);
 }

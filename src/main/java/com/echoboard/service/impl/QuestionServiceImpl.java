@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 import static com.echoboard.enums.QuestionEventType.CREATED;
@@ -254,6 +253,17 @@ public class QuestionServiceImpl implements QuestionService {
                         sessionId,
                         List.of(APPROVED, ANSWERED)
                 );
+
+        return questions
+                .stream()
+                .map(questionMapper::questionToQuestionResponse)
+                .toList();
+    }
+
+    @Override
+    public List<QuestionResponse> getQuestionsForExportBySessionId(Long sessionId) {
+        List<Question> questions =
+                questionRepository.findBySession_IdOrderByCreatedAtAsc(sessionId);
 
         return questions
                 .stream()
