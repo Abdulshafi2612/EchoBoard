@@ -11,8 +11,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -75,5 +77,15 @@ public class SessionController {
     public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
         sessionService.deleteSession(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping(value = "/{sessionId}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<SessionResponse> uploadSessionLogo(
+            @PathVariable Long sessionId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        SessionResponse response = sessionService.uploadSessionLogo(sessionId, file);
+
+        return ResponseEntity.ok(response);
     }
 }

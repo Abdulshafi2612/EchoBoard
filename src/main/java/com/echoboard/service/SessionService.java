@@ -6,6 +6,7 @@ import com.echoboard.dto.session.SessionResponse;
 import com.echoboard.dto.session.UpdateSessionRequest;
 import com.echoboard.entity.Session;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface SessionService {
 
@@ -30,4 +31,6 @@ public interface SessionService {
     void deleteSession(Long id);
 
     Session getOwnedSessionOrThrow(Long sessionId);
+
+    SessionResponse uploadSessionLogo(Long sessionId, MultipartFile file);
 }

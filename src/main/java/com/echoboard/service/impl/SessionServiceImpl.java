@@ -14,14 +14,15 @@ import com.echoboard.mapper.SessionMapper;
 import com.echoboard.rabbitmq.RabbitMQPublisher;
 import com.echoboard.repository.SessionRepository;
 import com.echoboard.service.CurrentUserService;
+import com.echoboard.service.FileStorageService;
 import com.echoboard.service.PollCounterSyncService;
-import com.echoboard.service.PollService;
 import com.echoboard.service.SessionService;
 import com.echoboard.util.AccessCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,11 +36,14 @@ import static org.springframework.http.HttpStatus.FORBIDDEN;
 @RequiredArgsConstructor
 public class SessionServiceImpl implements SessionService {
 
+    private static final String LOGO_FOLDER_PATH = "sessions/%d/logo";
+
     private final SessionRepository sessionRepository;
     private final SessionMapper sessionMapper;
     private final CurrentUserService currentUserService;
     private final RabbitMQPublisher rabbitMQPublisher;
     private final PollCounterSyncService pollCounterSyncService;
+    private final FileStorageService fileStorageService;
 
     @Override
     public SessionResponse createSession(CreateSessionRequest request) {
@@ -239,6 +243,7 @@ public class SessionServiceImpl implements SessionService {
 
         sessionRepository.delete(session);
     }
+
     @Override
     public Session getOwnedSessionOrThrow(Long sessionId) {
         User owner = currentUserService.getCurrentUser();
@@ -249,6 +254,15 @@ public class SessionServiceImpl implements SessionService {
                         NOT_FOUND,
                         "Session not found"
                 ));
+    }
+
+    @Override
+    public SessionResponse uploadSessionLogo(Long sessionId, MultipartFile file) {
+        Session session = getOwnedSessionOrThrow(sessionId);
+        String logoUrl = fileStorageService.storeFile(file, LOGO_FOLDER_PATH.formatted(sessionId));
+        session.setLogoUrl(logoUrl);
+        Session savedSession = sessionRepository.save(session);
+        return sessionMapper.sessionToSessionResponse(savedSession);
     }
 
     private String generateUniqueAccessCode() {
