@@ -6,6 +6,8 @@ import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.enums.QuestionStatus;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface QuestionService {
 
     PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(Pageable pageable, Long sessionId, QuestionStatus status);
@@ -28,4 +30,5 @@ public interface QuestionService {
 
     long getNumberOfQuestionsBySessionIdAndStatus(Long sessionId, QuestionStatus status);
 
+    List<QuestionResponse> getTopUpvotedQuestionBySessionId(Long sessionId);
 }

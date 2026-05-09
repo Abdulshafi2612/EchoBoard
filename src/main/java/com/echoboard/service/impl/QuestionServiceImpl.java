@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.echoboard.enums.QuestionEventType.CREATED;
@@ -246,6 +247,19 @@ public class QuestionServiceImpl implements QuestionService {
         return questionRepository.countBySession_IdAndStatus(sessionId, status);
     }
 
+    @Override
+    public List<QuestionResponse> getTopUpvotedQuestionBySessionId(Long sessionId) {
+        List<Question> questions =
+                questionRepository.findTop5BySession_IdAndStatusInOrderByUpvoteCountDescCreatedAtAsc(
+                        sessionId,
+                        List.of(APPROVED, ANSWERED)
+                );
+
+        return questions
+                .stream()
+                .map(questionMapper::questionToQuestionResponse)
+                .toList();
+    }
 
     private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {
         return questionRepository

@@ -1,6 +1,9 @@
 package com.echoboard.dto.analytics;
 
+import com.echoboard.dto.question.QuestionResponse;
 import lombok.*;
+
+import java.util.List;
 
 @Setter
 @Getter
@@ -22,6 +25,8 @@ public class SessionAnalyticsResponse {
     private long approvedQuestions;
 
     private long answeredQuestions;
+
+    private List<QuestionResponse> topQuestions;
 
     private long hiddenQuestions;
 

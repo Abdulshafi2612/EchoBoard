@@ -1,11 +1,14 @@
 package com.echoboard.service.impl;
 
 import com.echoboard.dto.analytics.SessionAnalyticsResponse;
+import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.entity.Session;
 import com.echoboard.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 import static com.echoboard.enums.QuestionStatus.*;
 
@@ -32,7 +35,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         long approvedQuestions = questionService.getNumberOfQuestionsBySessionIdAndStatus(sessionId, APPROVED);
         long answeredQuestions = questionService.getNumberOfQuestionsBySessionIdAndStatus(sessionId, ANSWERED);
         long hiddenQuestions = questionService.getNumberOfQuestionsBySessionIdAndStatus(sessionId, HIDDEN);
-        long totalQuestions = pendingQuestions + approvedQuestions + answeredQuestions + hiddenQuestions;        long totalPolls = pollService.getNumberOfTotalPollsBySessionId(sessionId);
+        List<QuestionResponse> topQuestion = questionService.getTopUpvotedQuestionBySessionId(sessionId);
+        long totalQuestions = pendingQuestions + approvedQuestions + answeredQuestions + hiddenQuestions;
+        long totalPolls = pollService.getNumberOfTotalPollsBySessionId(sessionId);
         long totalPollVotes = pollService.getNumberOfTotalVotesBySessionId(sessionId);
 
         return SessionAnalyticsResponse
@@ -45,6 +50,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .pendingQuestions(pendingQuestions)
                 .hiddenQuestions(hiddenQuestions)
                 .totalQuestions(totalQuestions)
+                .topQuestions(topQuestion)
                 .totalPolls(totalPolls)
                 .totalPollVotes(totalPollVotes)
                 .build();
