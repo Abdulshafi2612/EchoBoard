@@ -24,4 +24,5 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     List<Session> findByStatusAndEndedAtBefore(SessionStatus status, LocalDateTime cutoff);
 
+    List<Session> findByStatusAndStartedAtBefore(SessionStatus status, LocalDateTime cutoff);
 }
