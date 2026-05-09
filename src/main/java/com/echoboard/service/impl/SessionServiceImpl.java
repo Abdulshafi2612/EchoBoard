@@ -266,7 +266,7 @@ public class SessionServiceImpl implements SessionService {
                     "you can upload file only scheduled or live sessions"
             );
         }
-        String logoUrl = fileStorageService.storeFile(file, LOGO_FOLDER_PATH.formatted(sessionId));
+        String logoUrl = fileStorageService.storeImageFile(file, LOGO_FOLDER_PATH.formatted(sessionId));
         session.setLogoUrl(logoUrl);
         Session savedSession = sessionRepository.save(session);
 

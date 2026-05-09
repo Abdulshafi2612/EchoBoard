@@ -1,16 +1,20 @@
 package com.echoboard.service.impl;
 
 import com.echoboard.dto.common.PageResponse;
+import com.echoboard.dto.question.QuestionAttachmentResponse;
 import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.dto.websocket.QuestionDeletedEvent;
 import com.echoboard.dto.websocket.QuestionEvent;
 import com.echoboard.entity.*;
+import com.echoboard.enums.FileType;
 import com.echoboard.enums.QuestionEventType;
 import com.echoboard.enums.QuestionStatus;
 import com.echoboard.enums.SessionStatus;
 import com.echoboard.exception.AppException;
+import com.echoboard.mapper.QuestionAttachmentMapper;
 import com.echoboard.mapper.QuestionMapper;
+import com.echoboard.repository.QuestionAttachmentRepository;
 import com.echoboard.repository.QuestionRepository;
 import com.echoboard.repository.QuestionVoteRepository;
 import com.echoboard.service.*;
@@ -21,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -42,6 +47,7 @@ public class QuestionServiceImpl implements QuestionService {
     private static final String PARTICIPANT_RATE_LIMIT_KEY_TEMPLATE = "rate:participant:%d:%s";
     private static final int PARTICIPANT_ACTION_MAX_REQUESTS = 5;
     private static final Duration PARTICIPANT_ACTION_RATE_LIMIT_WINDOW = Duration.ofSeconds(60);
+    private static final String QUESTION_ATTACHMENT_PATH = "sessions/%d/questions/%d";
 
     private final QuestionRepository questionRepository;
     private final SessionService sessionService;
@@ -52,6 +58,10 @@ public class QuestionServiceImpl implements QuestionService {
     private final CurrentUserService currentUserService;
     private final QuestionVoteRepository questionVoteRepository;
     private final RateLimiterService rateLimiterService;
+    private final FileStorageService fileStorageService;
+    private final QuestionAttachmentRepository questionAttachmentRepository;
+    private final QuestionAttachmentMapper questionAttachmentMapper;
+
 
     @Override
     public PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(
@@ -88,7 +98,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
-    public void submitQuestion(Long sessionId, SubmitQuestionRequest request) {
+    public QuestionResponse submitQuestion(Long sessionId, SubmitQuestionRequest request) {
         Long participantId = currentParticipantService.getCurrentParticipantId();
         validateParticipantIdentity(participantId);
 
@@ -113,6 +123,7 @@ public class QuestionServiceImpl implements QuestionService {
                     "Too many questions. Please wait before submitting again."
             );
         }
+
         Question question = createQuestion(session, participant, request.getContent());
         Question savedQuestion = questionRepository.save(question);
 
@@ -121,6 +132,8 @@ public class QuestionServiceImpl implements QuestionService {
         } else {
             broadcastQuestionEventToPublicTopic(savedQuestion, CREATED);
         }
+
+        return questionMapper.questionToQuestionResponse(savedQuestion);
     }
 
     @Override
@@ -269,6 +282,79 @@ public class QuestionServiceImpl implements QuestionService {
                 .stream()
                 .map(questionMapper::questionToQuestionResponse)
                 .toList();
+    }
+
+    @Transactional
+    @Override
+    public QuestionAttachmentResponse uploadQuestionAttachment(Long sessionId, Long questionId, MultipartFile file) {
+        Long participantId = currentParticipantService.getCurrentParticipantId();
+        validateParticipantIdentity(participantId);
+        Question question = questionRepository.findById(questionId).orElseThrow(
+                () -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Question not found"
+                )
+        );
+        if (!question.getParticipant().getId().equals(participantId)) {
+            throw new AppException(
+                    FORBIDDEN,
+                    HttpStatus.FORBIDDEN,
+                    "Participant cannot upload question attachments to this question"
+            );
+        }
+        getLiveSessionOrThrow(sessionId);
+        Participant participant = getParticipantOrThrow(participantId);
+
+        validateParticipantBelongsToSession(participant, sessionId);
+        validateParticipantIsNotMuted(participant);
+
+        String rateLimitKey = PARTICIPANT_RATE_LIMIT_KEY_TEMPLATE.formatted(participantId, "attachments");
+
+        boolean isAllowed = rateLimiterService.isAllowed(
+                rateLimitKey,
+                PARTICIPANT_ACTION_MAX_REQUESTS,
+                PARTICIPANT_ACTION_RATE_LIMIT_WINDOW
+        );
+
+        if (!isAllowed) {
+            throw new AppException(
+                    RATE_LIMIT_EXCEEDED,
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many attachment uploads. Please wait before trying again."
+            );
+        }
+
+        String attachmentUrl = fileStorageService
+                .storeAttachmentFile(
+                        file,
+                        QUESTION_ATTACHMENT_PATH.formatted(sessionId, questionId));
+
+        FileType fileType = fileStorageService.getFileType(file);
+
+        String originalFilename = file.getOriginalFilename();
+
+        if (originalFilename == null || originalFilename.isBlank() || originalFilename.length() > 100) {
+            throw new AppException(
+                    VALIDATION_ERROR,
+                    BAD_REQUEST,
+                    "Invalid file name"
+            );
+        }
+
+        QuestionAttachment questionAttachment = QuestionAttachment
+                .builder()
+                .fileUrl(attachmentUrl)
+                .question(question)
+                .fileName(file.getOriginalFilename())
+                .fileSize(file.getSize())
+                .fileType(fileType)
+                .build();
+
+        QuestionAttachment savedQuestionAttachment = questionAttachmentRepository.save(questionAttachment);
+
+
+        return questionAttachmentMapper.questionAttachmentToQuestionAttachmentResponse(savedQuestionAttachment);
     }
 
     private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {

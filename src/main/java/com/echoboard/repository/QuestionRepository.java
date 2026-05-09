@@ -29,5 +29,4 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     List<Question> findBySession_IdOrderByCreatedAtAsc(Long sessionId);
 
-
 }

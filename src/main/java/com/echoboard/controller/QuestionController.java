@@ -1,6 +1,7 @@
 package com.echoboard.controller;
 
 import com.echoboard.dto.common.PageResponse;
+import com.echoboard.dto.question.QuestionAttachmentResponse;
 import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.enums.QuestionStatus;
@@ -10,8 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -36,13 +39,13 @@ public class QuestionController {
 
 
     @PostMapping
-    public ResponseEntity<Void> submitQuestion(
+    public ResponseEntity<QuestionResponse> submitQuestion(
             @PathVariable Long sessionId,
             @Valid @RequestBody SubmitQuestionRequest request
     ) {
-        questionService.submitQuestion(sessionId, request);
+        QuestionResponse questionResponse= questionService.submitQuestion(sessionId, request);
 
-        return ResponseEntity.status(CREATED).build();
+        return ResponseEntity.status(CREATED).body(questionResponse);
     }
 
     @PatchMapping("/{questionId}/approve")
@@ -111,6 +114,18 @@ public class QuestionController {
         questionService.upvotequestion(sessionId, questionId);
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping(value = "/{questionId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<QuestionAttachmentResponse> uploadQuestionAttachment(
+            @PathVariable Long sessionId,
+            @PathVariable Long questionId,
+            @RequestParam("file") MultipartFile file
+    ) {
+        QuestionAttachmentResponse response =
+                questionService.uploadQuestionAttachment(sessionId, questionId, file);
+
+        return ResponseEntity.status(CREATED).body(response);
     }
 
 }

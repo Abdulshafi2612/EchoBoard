@@ -1,10 +1,12 @@
 package com.echoboard.service;
 
 import com.echoboard.dto.common.PageResponse;
+import com.echoboard.dto.question.QuestionAttachmentResponse;
 import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.dto.question.SubmitQuestionRequest;
 import com.echoboard.enums.QuestionStatus;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -12,7 +14,7 @@ public interface QuestionService {
 
     PageResponse<QuestionResponse> getQuestionsBySessionIdAndStatus(Pageable pageable, Long sessionId, QuestionStatus status);
 
-    void submitQuestion(Long sessionId, SubmitQuestionRequest request);
+    QuestionResponse submitQuestion(Long sessionId, SubmitQuestionRequest request);
 
     void deleteQuestion(Long sessionId, Long questionId);
 
@@ -33,4 +35,6 @@ public interface QuestionService {
     List<QuestionResponse> getTopUpvotedQuestionBySessionId(Long sessionId);
 
     List<QuestionResponse> getQuestionsForExportBySessionId(Long sessionId);
+
+    QuestionAttachmentResponse uploadQuestionAttachment(Long sessionId, Long questionId, MultipartFile file);
 }
