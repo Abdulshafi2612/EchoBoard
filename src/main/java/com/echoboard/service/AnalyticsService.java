@@ -12,4 +12,7 @@ public interface AnalyticsService {
     String exportCsvSessionQuestions(Long sessionId);
 
     List<PollAnalyticsResponse> getPollAnalytics(Long sessionId);
+
+    void generateSessionAnalyticsSnapshot(Long sessionId);
+
 }
