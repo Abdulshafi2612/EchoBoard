@@ -1,7 +1,10 @@
 package com.echoboard.service;
 
+import com.echoboard.dto.analytics.PollAnalyticsResponse;
 import com.echoboard.dto.poll.CreatePollRequest;
 import com.echoboard.dto.poll.PollResponse;
+
+import java.util.List;
 
 public interface PollService {
 
@@ -19,4 +22,5 @@ public interface PollService {
 
     long getNumberOfTotalVotesBySessionId(Long sessionId);
 
+    List<PollAnalyticsResponse> getPollAnalyticsBySessionId(Long sessionId);
 }

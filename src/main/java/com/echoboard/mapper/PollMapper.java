@@ -1,5 +1,7 @@
 package com.echoboard.mapper;
 
+import com.echoboard.dto.analytics.PollAnalyticsResponse;
+import com.echoboard.dto.analytics.PollOptionAnalyticsResponse;
 import com.echoboard.dto.poll.CreatePollRequest;
 import com.echoboard.dto.poll.PollOptionRequest;
 import com.echoboard.dto.poll.PollOptionResponse;
@@ -57,4 +59,29 @@ public interface PollMapper {
     @Mapping(source = "options", target = "options")
     @Mapping(target = "eventType", ignore = true)
     PollEvent pollToPollEvent(Poll poll, List<PollOptionResponse> options);
+
+
+    @Mapping(source = "poll.id", target = "pollId")
+    @Mapping(source = "poll.title", target = "title")
+    @Mapping(source = "poll.status", target = "status")
+    @Mapping(source = "poll.type", target = "type")
+    @Mapping(source = "poll.publishedAt", target = "publishedAt")
+    @Mapping(source = "poll.closedAt", target = "closedAt")
+    @Mapping(source = "totalVotes", target = "totalVotes")
+    @Mapping(source = "options", target = "options")
+    PollAnalyticsResponse pollToPollAnalyticsResponse(
+            Poll poll,
+            long totalVotes,
+            List<PollOptionAnalyticsResponse> options
+    );
+
+    @Mapping(source = "option.id", target = "optionId")
+    @Mapping(source = "option.text", target = "text")
+    @Mapping(source = "voteCount", target = "voteCount")
+    @Mapping(source = "percentage", target = "percentage")
+    PollOptionAnalyticsResponse pollOptionToPollOptionAnalyticsResponse(
+            PollOption option,
+            long voteCount,
+            double percentage
+    );
 }

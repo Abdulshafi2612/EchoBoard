@@ -1,5 +1,6 @@
 package com.echoboard.controller;
 
+import com.echoboard.dto.analytics.PollAnalyticsResponse;
 import com.echoboard.dto.analytics.SessionAnalyticsResponse;
 import com.echoboard.service.AnalyticsService;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 import static org.springframework.http.HttpHeaders.CONTENT_DISPOSITION;
 
@@ -25,7 +28,7 @@ public class AnalyticsController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/export")
+    @GetMapping("/questions/export")
     public ResponseEntity<String> exportSessionQuestionsAsCsv(@PathVariable Long sessionId) {
         String csv = analyticsService.exportCsvSessionQuestions(sessionId);
 
@@ -33,5 +36,11 @@ public class AnalyticsController {
                 .header(CONTENT_DISPOSITION, "attachment; filename=\"session-" + sessionId + "-questions.csv\"")
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(csv);
+    }
+
+    @GetMapping("/polls")
+    public ResponseEntity<List<PollAnalyticsResponse>> getPollAnalytics(@PathVariable Long sessionId) {
+        List<PollAnalyticsResponse> response = analyticsService.getPollAnalytics(sessionId);
+        return ResponseEntity.ok(response);
     }
 }

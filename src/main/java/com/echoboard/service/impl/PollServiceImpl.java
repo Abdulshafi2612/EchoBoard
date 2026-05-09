@@ -1,5 +1,7 @@
 package com.echoboard.service.impl;
 
+import com.echoboard.dto.analytics.PollAnalyticsResponse;
+import com.echoboard.dto.analytics.PollOptionAnalyticsResponse;
 import com.echoboard.dto.poll.CreatePollRequest;
 import com.echoboard.dto.poll.PollOptionResponse;
 import com.echoboard.dto.poll.PollResponse;
@@ -143,6 +145,59 @@ public class PollServiceImpl implements PollService {
         return pollVoteRepository.countByPoll_Session_Id(sessionId);
     }
 
+    @Override
+    public List<PollAnalyticsResponse> getPollAnalyticsBySessionId(Long sessionId) {
+        List<Poll> polls = pollRepository.findBySession_IdOrderByCreatedAtAsc(sessionId);
+
+        return polls.stream()
+                .map(this::createPollAnalyticsResponse)
+                .toList();
+    }
+
+    private PollAnalyticsResponse createPollAnalyticsResponse(Poll poll) {
+        List<PollOption> options = pollOptionRepository.findByPoll_IdOrderByIdAsc(poll.getId());
+
+        long totalVotes = calculateTotalVotes(options);
+
+        List<PollOptionAnalyticsResponse> optionResponses = options.stream()
+                .map(option -> createPollOptionAnalyticsResponse(option, totalVotes))
+                .toList();
+
+        return pollMapper.pollToPollAnalyticsResponse(
+                poll,
+                totalVotes,
+                optionResponses
+        );
+    }
+
+    private PollOptionAnalyticsResponse createPollOptionAnalyticsResponse(
+            PollOption option,
+            long totalVotes
+    ) {
+        long voteCount = option.getVoteCount();
+        double percentage = calculatePercentage(voteCount, totalVotes);
+
+        return pollMapper.pollOptionToPollOptionAnalyticsResponse(
+                option,
+                voteCount,
+                percentage
+        );
+    }
+
+    private long calculateTotalVotes(List<PollOption> options) {
+        return options.stream()
+                .mapToLong(PollOption::getVoteCount)
+                .sum();
+    }
+
+    private double calculatePercentage(long voteCount, long totalVotes) {
+        if (totalVotes == 0) {
+            return 0.0;
+        }
+
+        return (voteCount * 100.0) / totalVotes;
+    }
+
 
     private PollResponse changePollStatus(
             Long pollId,
@@ -236,7 +291,7 @@ public class PollServiceImpl implements PollService {
     }
 
     private List<PollOption> getPollOptions(Long pollId) {
-        return pollOptionRepository.findByPoll_Id(pollId);
+        return pollOptionRepository.findByPoll_IdOrderByIdAsc(pollId);
     }
 
     private Poll getPollOrThrow(Long pollId) {
@@ -417,7 +472,7 @@ public class PollServiceImpl implements PollService {
     }
 
     private void syncPollCounts(Long pollId) {
-        List<PollOption> options = pollOptionRepository.findByPoll_Id(pollId);
+        List<PollOption> options = pollOptionRepository.findByPoll_IdOrderByIdAsc(pollId);
         List<PollOption> updatedOptions = new ArrayList<>();
 
         for (PollOption option : options) {

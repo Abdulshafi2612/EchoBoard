@@ -1,5 +1,6 @@
 package com.echoboard.service.impl;
 
+import com.echoboard.dto.analytics.PollAnalyticsResponse;
 import com.echoboard.dto.analytics.SessionAnalyticsResponse;
 import com.echoboard.dto.question.QuestionResponse;
 import com.echoboard.entity.Session;
@@ -34,6 +35,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         sessionService.getOwnedSessionOrThrow(sessionId);
         return CsvExportUtil
                 .toQuestionsCsv(questionService.getQuestionsForExportBySessionId(sessionId));
+    }
+
+    @Override
+    public List<PollAnalyticsResponse> getPollAnalytics(Long sessionId) {
+        sessionService.getOwnedSessionOrThrow(sessionId);
+        return pollService.getPollAnalyticsBySessionId(sessionId);
     }
 
     private SessionAnalyticsResponse createSessionAnalytics(Long sessionId) {
