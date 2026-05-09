@@ -18,6 +18,8 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class FileStorageServiceImpl implements FileStorageService {
 
     private static final String ROOT_PATH = "uploads/";
+    private static final long MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+
 
     @Override
     public String storeFile(MultipartFile file, String folderName) {
@@ -28,6 +30,15 @@ public class FileStorageServiceImpl implements FileStorageService {
                     "File is required"
             );
         }
+
+        if(file.getSize() > MAX_FILE_SIZE_BYTES) {
+            throw new AppException(
+                    VALIDATION_ERROR,
+                    BAD_REQUEST,
+                    "File is too large"
+            );
+        }
+
         Path uploadDirectory = Path.of(ROOT_PATH, folderName);
 
         try {
@@ -44,9 +55,18 @@ public class FileStorageServiceImpl implements FileStorageService {
         String extension = "";
 
         if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            extension = originalFilename
+                    .substring(originalFilename.lastIndexOf("."))
+                    .toLowerCase();
         }
 
+        if (!extension.equals(".png") && !extension.equals(".jpg") && !extension.equals(".jpeg")) {
+            throw new AppException(
+                    VALIDATION_ERROR,
+                    BAD_REQUEST,
+                    "Only PNG and JPG images are allowed"
+            );
+        }
         String safeFileName = UUID.randomUUID() + extension;
 
         Path targetPath = uploadDirectory.resolve(safeFileName);

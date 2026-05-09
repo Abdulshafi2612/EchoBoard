@@ -259,9 +259,17 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public SessionResponse uploadSessionLogo(Long sessionId, MultipartFile file) {
         Session session = getOwnedSessionOrThrow(sessionId);
+        if(session.getStatus()!=LIVE && session.getStatus()!=SCHEDULED) {
+            throw new AppException(
+                    INVALID_SESSION_STATUS,
+                    BAD_REQUEST,
+                    "you can upload file only scheduled or live sessions"
+            );
+        }
         String logoUrl = fileStorageService.storeFile(file, LOGO_FOLDER_PATH.formatted(sessionId));
         session.setLogoUrl(logoUrl);
         Session savedSession = sessionRepository.save(session);
+
         return sessionMapper.sessionToSessionResponse(savedSession);
     }
 
