@@ -4,7 +4,7 @@
 
 ### Real-time Q&A, live polling, moderation, and audience presence for interactive sessions
 
-Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Redis-backed rate limiting, caching, presence, and poll counters · RabbitMQ-backed async mock email and analytics workflows · Scheduled maintenance jobs · Documented with **Swagger/OpenAPI**
+Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** · Real-time with **WebSocket/STOMP** · Redis-backed rate limiting, caching, presence, and poll counters · RabbitMQ-backed async email and analytics snapshot workflows · Scheduled maintenance jobs · Local file uploads · Documented with **Swagger/OpenAPI**
 
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -26,7 +26,7 @@ Built with **Spring Boot** · Secured with **JWT** · Powered by **PostgreSQL** 
 
 A presenter creates a live session, shares a short access code with the audience, and participants can join without creating full user accounts. During the session, participants can submit questions, upvote approved questions, vote on live polls, and appear in live presence counts. Presenters manage the session lifecycle, moderate questions, publish polls, and receive real-time updates through WebSocket/STOMP topics.
 
-The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, Redis-backed rate limiting/caching/presence/poll counters, RabbitMQ-backed asynchronous event processing with DLQ support, scheduled maintenance jobs, and a roadmap for Docker, analytics export, observability, and integration testing.
+The project is intentionally designed to be more than a CRUD API. It demonstrates production-style backend architecture with JWT authentication, refresh token rotation, participant-scoped tokens, ownership-based authorization, DTO contracts, service-layer business validation, PostgreSQL constraints, real-time WebSocket broadcasts, global error handling, Redis-backed rate limiting/caching/presence/poll counters, RabbitMQ-backed asynchronous event processing with DLQ support, scheduled maintenance jobs, analytics/export features, local file uploads, and a roadmap for Docker, observability, CI, and integration testing.
 
 Think of it as a backend-focused simplified version of **Slido** or **Mentimeter**, built to showcase real-time backend engineering rather than frontend screens.
 
@@ -46,7 +46,7 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Production API | `TODO` | Upcoming |
 | Docker Compose | `TODO` | Planned |
 
-> Production deployment, Docker Compose, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is implemented for rate limiting, access-code caching, presence tracking, and live poll counters with scheduled PostgreSQL synchronization. RabbitMQ is implemented for asynchronous session-created and session-ended event flows with an analytics DLQ, while real email delivery, full analytics generation, retries with backoff, and DLQ reprocessing remain future improvements. Scheduled jobs are implemented for refresh token cleanup, long-running session auto-ending, old ended session archival, and Redis poll counter synchronization.
+> Production deployment, Docker Compose, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is implemented for rate limiting, access-code caching, presence tracking, and live poll counters with scheduled PostgreSQL synchronization. RabbitMQ is implemented for asynchronous session-created event handling and session-ended analytics snapshot generation with an analytics DLQ, while real email delivery, retries with backoff, DLQ reprocessing, and the transactional outbox pattern remain future improvements. Scheduled jobs are implemented for refresh token cleanup, long-running session auto-ending, old ended session archival, and Redis poll counter synchronization.
 
 ---
 
@@ -190,6 +190,47 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Published polls can be closed by the owner
 - Only draft polls can be deleted
 
+
+### 📈 Analytics, Reports, and CSV Export
+
+- Session owners can retrieve a session analytics summary
+- Session analytics includes:
+  - total participants
+  - total questions
+  - pending, approved, answered, and hidden question counts
+  - top upvoted public questions
+  - total polls
+  - total poll votes
+- Poll analytics returns each poll with:
+  - poll id and title
+  - status and type
+  - total votes
+  - published and closed timestamps
+  - option-level vote counts and percentages
+- Questions can be exported as a downloadable CSV file
+- CSV export uses fixed columns and safe CSV formatting
+- RabbitMQ generates final session analytics snapshots asynchronously after a session ends
+- The analytics endpoint returns saved snapshot totals when available, while keeping top questions calculated on demand
+- Redis poll counters are synchronized to PostgreSQL before publishing the session-ended analytics event, ensuring generated snapshots use the latest vote counts
+
+### 📁 File Uploads
+
+- Session owners can upload a session logo using multipart/form-data
+- Session logo uploads are allowed only for scheduled or live sessions
+- Participants can upload one attachment for their own question
+- Question attachments are stored with metadata:
+  - original file name
+  - stored file URL
+  - file type
+  - file size
+  - upload timestamp
+- File uploads are validated for:
+  - required file presence
+  - maximum size
+  - allowed file extensions/types
+  - participant ownership for question attachments
+- Uploaded files are stored locally under the `uploads/` directory using generated UUID filenames
+
 ### ⚡ Redis Features
 
 - Redis is integrated through Spring Data Redis and `StringRedisTemplate`
@@ -226,11 +267,11 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Session creation publishes a `SessionCreatedEvent`
 - `EmailNotificationConsumer` consumes session-created events and logs a mock email notification
 - Session ending publishes a `SessionEndedEvent`
-- `AnalyticsConsumer` consumes session-ended events and logs mock analytics generation
+- `AnalyticsConsumer` consumes session-ended events and generates final session analytics snapshots
 - Long-running sessions that are auto-ended by a scheduled job publish the same session-ended event
 - Failed analytics messages can be rejected without requeueing and routed to `analytics.dlq`
 - RabbitMQ failure behavior was manually tested with DLQ routing
-- Real email delivery, full analytics generation, retry backoff, idempotent consumers, and DLQ reprocessing are planned improvements
+- Real email delivery, retry backoff, DLQ reprocessing, and the transactional outbox pattern are planned improvements
 
 ### ⏰ Scheduled Jobs
 
@@ -290,10 +331,12 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Swagger/OpenAPI | ✅ Configured | Springdoc dependencies and Swagger UI path |
 | Actuator | ✅ Configured | Health/info exposed |
 | Redis | ✅ Implemented | Rate limiting, access-code cache, presence tracking, live poll counters, scheduled counter sync |
-| RabbitMQ | ✅ Implemented | Async session-created mock email flow, session-ended mock analytics flow, JSON conversion, and analytics DLQ |
+| RabbitMQ | ✅ Implemented | Async session-created mock email flow, session-ended analytics snapshot generation, JSON conversion, and analytics DLQ |
 | Scheduled jobs | ✅ Implemented | Refresh token cleanup, 24-hour auto-end for live sessions, old ended session archival, Redis poll counter sync |
 | Docker Compose | 🟡 Planned | Redis and RabbitMQ are currently run locally through Docker; full app compose is planned |
-| Analytics / CSV export | 🟡 Planned | Not implemented yet |
+| Analytics / CSV export | ✅ Implemented | Session analytics summary, top questions, poll analytics, async snapshots, and questions CSV export |
+| Session logo upload | ✅ Implemented | Owner-only multipart upload with local storage and validation |
+| Question attachments | ✅ Implemented | Participant-owned attachment upload with metadata persistence and validation |
 | Integration tests | 🟡 Planned | Test dependencies exist; test classes were not included in the uploaded snapshot |
 
 ---
@@ -863,7 +906,7 @@ RabbitMQ is used for asynchronous background workflows that should not block the
 | Area | Purpose | Current Behavior |
 |---|---|---|
 | Session created event | Trigger background notification-style work | Logs a mock email notification |
-| Session ended event | Trigger background analytics-style work | Logs mock analytics generation |
+| Session ended event | Trigger background analytics-style work | Generates and persists analytics snapshots |
 | Auto-ended session event | Reuse the same ended-session background pipeline | Publishes `SessionEndedEvent` when the scheduler ends a long-running session |
 | Analytics DLQ | Store failed analytics messages safely | Failed analytics messages are routed to `analytics.dlq` |
 | JSON conversion | Serialize Java event objects into RabbitMQ messages | Uses `Jackson2JsonMessageConverter` |
@@ -925,7 +968,7 @@ Routing key: analytics.session.ended
 Message routed to analytics.queue
       |
       v
-AnalyticsConsumer logs mock analytics generation
+AnalyticsConsumer generates and stores a session analytics snapshot
 ```
 
 ### Analytics DLQ Flow
@@ -948,7 +991,7 @@ Message is stored in analytics.dlq for later review
 
 ### Current RabbitMQ Boundaries
 
-The current RabbitMQ implementation proves asynchronous event publishing, routing, consuming, JSON conversion, and DLQ behavior. It does not yet implement real email sending, full analytics calculation, retry with backoff, DLQ reprocessing, idempotent consumers, or the transactional outbox pattern.
+The current RabbitMQ implementation proves asynchronous event publishing, routing, consuming, JSON conversion, analytics snapshot generation, and DLQ behavior. It does not yet implement real email sending, retry with backoff, DLQ reprocessing, or the transactional outbox pattern.
 
 ---
 
@@ -1190,6 +1233,7 @@ Authorization: Bearer <accessToken-or-participantToken>
 | PATCH | `/api/v1/sessions/{id}/archive` | Archive a non-live session | Yes |
 | DELETE | `/api/v1/sessions/{id}` | Delete a scheduled session | Yes |
 | POST | `/api/v1/sessions/join` | Join a live session by access code | No |
+| PATCH | `/api/v1/sessions/{id}/logo` | Upload or replace an owned session logo | Yes |
 
 ### Questions
 
@@ -1204,6 +1248,7 @@ Authorization: Bearer <accessToken-or-participantToken>
 | PATCH | `/api/v1/sessions/{sessionId}/questions/{questionId}/answer` | Mark an approved question as answered | Yes |
 | POST | `/api/v1/sessions/{sessionId}/questions/{questionId}/upvote` | Upvote an approved question | Participant token |
 | DELETE | `/api/v1/sessions/{sessionId}/questions/{questionId}` | Delete participant-owned question | Participant token |
+| POST | `/api/v1/sessions/{sessionId}/questions/{questionId}/attachments` | Upload an attachment for participant-owned question | Participant token |
 
 ### Polls
 
@@ -1214,6 +1259,16 @@ Authorization: Bearer <accessToken-or-participantToken>
 | PATCH | `/api/v1/sessions/{sessionId}/polls/{pollId}/close` | Close a published poll | Yes |
 | POST | `/api/v1/sessions/{sessionId}/polls/{pollId}/vote/{optionId}` | Vote on a published poll | Participant token |
 | DELETE | `/api/v1/sessions/{sessionId}/polls/{pollId}` | Delete a draft poll | Yes |
+
+### Analytics and Files
+
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---:|
+| GET | `/api/v1/sessions/{sessionId}/analytics` | Get session analytics summary; uses saved snapshot totals when available | Yes |
+| GET | `/api/v1/sessions/{sessionId}/analytics/polls` | Get poll analytics with option vote counts and percentages | Yes |
+| GET | `/api/v1/sessions/{sessionId}/analytics/export` | Download session questions as CSV | Yes |
+| PATCH | `/api/v1/sessions/{sessionId}/logo` | Upload a session logo | Yes |
+| POST | `/api/v1/sessions/{sessionId}/questions/{questionId}/attachments` | Upload a participant-owned question attachment | Participant token |
 
 ### WebSocket
 
@@ -1406,8 +1461,20 @@ Content-Type: application/json
 }
 ```
 
-```http
-201 Created
+```json
+{
+  "id": 12,
+  "sessionId": 1,
+  "participantDisplayName": "Ahmed",
+  "content": "Why did you separate REST commands from WebSocket broadcasts?",
+  "status": "PENDING",
+  "upvoteCount": 0,
+  "pinned": false,
+  "answered": false,
+  "createdAt": "2026-05-07T14:20:00",
+  "approvedAt": null,
+  "answeredAt": null
+}
 ```
 
 The created question is then broadcast as either a pending or public `QuestionEvent`, depending on the session moderation setting.
@@ -1553,6 +1620,127 @@ Authorization: Bearer <participantToken>
 }
 ```
 
+
+### Get Session Analytics
+
+```http
+GET /api/v1/sessions/1/analytics
+Authorization: Bearer <accessToken>
+```
+
+```json
+{
+  "sessionId": 1,
+  "sessionTitle": "Backend Architecture Workshop",
+  "totalParticipants": 24,
+  "totalQuestions": 18,
+  "pendingQuestions": 4,
+  "approvedQuestions": 9,
+  "answeredQuestions": 3,
+  "topQuestions": [],
+  "hiddenQuestions": 2,
+  "totalPolls": 3,
+  "totalPollVotes": 41
+}
+```
+
+### Get Poll Analytics
+
+```http
+GET /api/v1/sessions/1/analytics/polls
+Authorization: Bearer <accessToken>
+```
+
+```json
+[
+  {
+    "pollId": 7,
+    "title": "Which backend topic should we go deeper into?",
+    "status": "PUBLISHED",
+    "type": "SINGLE_CHOICE",
+    "totalVotes": 10,
+    "publishedAt": "2026-05-07T14:12:00",
+    "closedAt": null,
+    "options": [
+      {
+        "optionId": 21,
+        "text": "Redis rate limiting",
+        "voteCount": 6,
+        "percentage": 60.0
+      },
+      {
+        "optionId": 22,
+        "text": "RabbitMQ async processing",
+        "voteCount": 4,
+        "percentage": 40.0
+      }
+    ]
+  }
+]
+```
+
+### Export Session Questions as CSV
+
+```http
+GET /api/v1/sessions/1/analytics/export
+Authorization: Bearer <accessToken>
+```
+
+```http
+200 OK
+Content-Disposition: attachment; filename="session-1-questions.csv"
+Content-Type: text/csv
+```
+
+### Upload Session Logo
+
+```http
+PATCH /api/v1/sessions/1/logo
+Authorization: Bearer <accessToken>
+Content-Type: multipart/form-data
+```
+
+Form-data:
+
+```text
+file = logo.png
+```
+
+```json
+{
+  "id": 1,
+  "title": "Backend Architecture Workshop",
+  "logoUrl": "uploads/sessions/1/logo/19c1db8d-4a8f-477e-b5a9-2f939b5554ff.png",
+  "status": "LIVE"
+}
+```
+
+### Upload Question Attachment
+
+```http
+POST /api/v1/sessions/1/questions/12/attachments
+Authorization: Bearer <participantToken>
+Content-Type: multipart/form-data
+```
+
+Form-data:
+
+```text
+file = diagram.pdf
+```
+
+```json
+{
+  "id": 2,
+  "questionId": 12,
+  "fileName": "diagram.pdf",
+  "fileUrl": "uploads/sessions/1/questions/12/79f99f7a-5208-44f3-b437-97f4745cb41d.pdf",
+  "fileType": "PDF",
+  "fileSize": 598065,
+  "uploadedAt": "2026-05-10T02:10:26.8973636"
+}
+```
+
 ---
 
 ## 📖 Swagger Documentation
@@ -1600,6 +1788,8 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 | `Poll` | `polls` | Presenter-created polls |
 | `PollOption` | `poll_options` | Options inside a poll |
 | `PollVote` | `poll_votes` | Participant poll votes |
+| `SessionAnalyticsSnapshot` | `session_analytics_snapshots` | Final analytics snapshot generated asynchronously after session end |
+| `QuestionAttachment` | `question_attachments` | Uploaded participant-owned file attached to a question |
 
 ### Relationships
 
@@ -1615,6 +1805,8 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 | Poll → PollOptions | One-to-Many |
 | Poll → PollVotes | One-to-Many |
 | PollOption → PollVotes | One-to-Many |
+| Session → SessionAnalyticsSnapshot | One-to-One |
+| Question → QuestionAttachment | One-to-One in the current MVP |
 
 ### Important Constraints
 
@@ -1625,6 +1817,8 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 | `participants.participant_token_hash` unique | Store participant token hashes uniquely |
 | `question_votes(question_id, participant_id)` unique | Prevent duplicate question upvotes |
 | `poll_votes(poll_id, participant_id)` unique | Prevent duplicate poll votes |
+| `session_analytics_snapshots.session_id` unique | Keep one final analytics snapshot per session |
+| `question_attachments.question_id` unique | Keep one attachment per question in the current MVP |
 
 ### Status Enums
 
@@ -1636,6 +1830,7 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 | `PollType` | `SINGLE_CHOICE`, `MULTIPLE_CHOICE` |
 | `TokenType` | `ACCESS`, `REFRESH`, `PARTICIPANT` |
 | `UserRole` | `PRESENTER`, `ADMIN` |
+| `FileType` | `PNG`, `JPG`, `JPEG`, `PDF`, `DOC`, `DOCX` |
 
 ---
 
@@ -1663,6 +1858,9 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 - Archived sessions cannot be archived again
 - Only `SCHEDULED` sessions can be deleted
 - Ended or archived sessions cannot be edited
+- Session logos can be uploaded only by the session owner
+- Session logos can be uploaded only while the session is scheduled or live
+- Session logo uploads validate file presence, size, and image type
 
 ### Participant Rules
 
@@ -1686,6 +1884,9 @@ Swagger is useful for exploring REST endpoints. For WebSocket testing, use a STO
 - Marking a question as answered changes status to `ANSWERED`, sets `answeredAt`, and unpins it
 - Participants can delete only their own questions
 - A participant can upvote the same question once
+- Participants can upload one attachment only to their own question
+- Question attachments are allowed only while the session is live
+- Question attachments validate file presence, size, and supported file type
 
 ### Poll Rules
 
@@ -1977,6 +2178,8 @@ app.jwt.participant-token-expiration-ms=${JWT_PARTICIPANT_TOKEN_EXPIRATION_MS}
 
 > Never commit real database passwords, JWT secrets, access tokens, refresh tokens, participant tokens, RabbitMQ credentials, Redis credentials, or production credentials.
 
+Uploaded local files are stored under the `uploads/` directory during development. In production, this should be replaced or backed by a managed storage solution such as S3-compatible object storage, and upload/download authorization should be reviewed carefully.
+
 ---
 
 ## 🗄️ Database Setup Notes
@@ -2009,6 +2212,8 @@ question_votes
 polls
 poll_options
 poll_votes
+session_analytics_snapshots
+question_attachments
 ```
 
 ---
@@ -2031,6 +2236,8 @@ poll_votes
 | RabbitMQ for async processing | Moves mock notification and analytics workflows out of the main request path |
 | Analytics DLQ | Prevents failed analytics messages from looping forever and keeps them available for review |
 | Scheduled maintenance jobs | Automate token cleanup, session lifecycle maintenance, and Redis-to-PostgreSQL counter sync |
+| Async analytics snapshots | Generate final report totals after session end without blocking the REST request |
+| Local file storage service | Centralizes upload validation, safe filenames, and storage paths for session logos and question attachments |
 | Actuator included early | Provides a foundation for health checks and monitoring |
 
 ---
@@ -2110,12 +2317,11 @@ The following screenshots are **UI mockups** representing the intended frontend 
 - `SessionCreatedEvent` is published when a session is created
 - `EmailNotificationConsumer` consumes session-created messages and logs mock email notifications
 - `SessionEndedEvent` is published when a session ends manually or automatically
-- `AnalyticsConsumer` consumes session-ended messages and logs mock analytics generation
+- `AnalyticsConsumer` consumes session-ended messages and generates session analytics snapshots
 - `analytics.queue` is configured with dead-letter routing
 - Failed analytics messages can be routed to `analytics.dlq`
 - Future RabbitMQ improvements:
   - real email delivery or notification service
-  - full analytics generation after session end
   - retry with backoff
   - DLQ monitoring and reprocessing
   - idempotent consumers
@@ -2133,13 +2339,22 @@ The following screenshots are **UI mockups** representing the intended frontend 
   - Redis poll key cleanup after archival
   - deeper presence reconciliation for stale WebSocket sessions
 
-### Analytics and Export Roadmap
+### Analytics, Export, and Files Status
 
-- Session analytics endpoint
-- Question summary
-- Poll result summary
-- Participant engagement metrics
-- CSV export for questions and poll results
+- Session analytics summary endpoint is implemented
+- Top questions are included in analytics responses
+- Poll analytics with option-level vote counts and percentages is implemented
+- Questions CSV export is implemented
+- Final analytics snapshots are generated asynchronously after session end
+- Saved snapshot totals are returned from the analytics endpoint when available
+- Session logo upload is implemented with local storage and validation
+- Question attachment upload is implemented with local storage, metadata persistence, and validation
+- Future improvements:
+  - CSV export for poll results
+  - downloadable file serving endpoint or static resource mapping
+  - delete/replace uploaded files safely
+  - cloud storage integration such as S3
+  - virus scanning or deeper file content validation
 
 ### Production Readiness Roadmap
 
@@ -2183,7 +2398,13 @@ The following screenshots are **UI mockups** representing the intended frontend 
 - Implementing scheduled maintenance jobs with Spring Scheduling
 - Cleaning expired and revoked refresh tokens automatically
 - Auto-ending long-running live sessions and archiving old ended sessions
-- Preparing a project roadmap for analytics export, Docker, CI, and Testcontainers
+- Generating analytics summaries and poll result reports from existing domain data
+- Exporting session questions as CSV with fixed columns and safe formatting
+- Generating and using asynchronous analytics snapshots after session end
+- Syncing Redis poll counters before analytics snapshot generation to avoid stale reports
+- Implementing local multipart file uploads with safe UUID filenames
+- Validating uploaded files by presence, size, extension, and business ownership rules
+- Preparing a project roadmap for Docker, CI, and Testcontainers
 
 ---
 
@@ -2193,13 +2414,15 @@ The following screenshots are **UI mockups** representing the intended frontend 
 - Presence is Redis-backed using session counters and WebSocket session keys with TTL foundation.
 - Redis poll option counters are used as live counters, while scheduled jobs persist counter snapshots to PostgreSQL.
 - RabbitMQ async processing is implemented for session-created mock email events and session-ended mock analytics events, including analytics DLQ routing for failed messages.
-- RabbitMQ currently performs mock background work through logs; real email delivery, full analytics generation, retry backoff, and DLQ reprocessing are planned future improvements.
+- RabbitMQ currently performs real async analytics snapshot generation after session end and mock email notification logging for session creation; real email delivery, retry backoff, and DLQ reprocessing are planned future improvements.
 - Scheduled jobs are implemented for refresh token cleanup, session auto-ending after 24 hours, old ended session archival, and poll counter synchronization.
+- Analytics/export features are implemented for session summaries, poll analytics, questions CSV export, and async final analytics snapshots.
+- Local file uploads are implemented for session logos and participant-owned question attachments.
 - Poll `MULTIPLE_CHOICE` exists as an enum, but the current database constraint allows only one vote per participant per poll.
 - A separate moderator entity/assignment workflow is not implemented yet; moderation is currently owner-only.
 - `SessionStatus.DRAFT` exists as an enum value, but new sessions are currently created as `SCHEDULED`.
 - Poll `DELETED` exists as an event enum, but draft poll deletion currently does not broadcast a public WebSocket delete event.
-- Docker Compose, CI, analytics, CSV export, deeper observability, integration tests, and production deployment are upcoming improvements.
+- Docker Compose, CI, deeper observability, integration tests, poll-results CSV export, downloadable file serving, and production deployment are upcoming improvements.
 
 ---
 
