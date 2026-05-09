@@ -26,4 +26,6 @@ public interface QuestionService {
 
     void upvotequestion(Long sessionId, Long questionId);
 
+    long getNumberOfQuestionsBySessionIdAndStatus(Long sessionId, QuestionStatus status);
+
 }

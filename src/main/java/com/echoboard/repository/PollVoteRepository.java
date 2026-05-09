@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PollVoteRepository extends JpaRepository<PollVote, Long> {
 
     boolean existsByParticipant_IdAndPoll_Id(Long participantId, Long pollId);
+
+    long countByPoll_Session_Id(Long sessionId);
 }

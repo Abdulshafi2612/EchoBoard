@@ -78,4 +78,9 @@ public class ParticipantServiceImpl implements ParticipantService {
     public Participant getParticipantById(Long participantId) {
         return participantRepository.findById(participantId).orElse(null);
     }
+
+    @Override
+    public long getNumberOfTotalParticipantsBySessionId(Long sessionId) {
+        return participantRepository.countBySession_Id(sessionId);
+    }
 }

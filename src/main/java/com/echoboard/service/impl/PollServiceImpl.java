@@ -133,6 +133,16 @@ public class PollServiceImpl implements PollService {
         pollRepository.delete(poll);
     }
 
+    @Override
+    public long getNumberOfTotalPollsBySessionId(Long sessionId) {
+        return pollRepository.countBySession_Id(sessionId);
+    }
+
+    @Override
+    public long getNumberOfTotalVotesBySessionId(Long sessionId) {
+        return pollVoteRepository.countByPoll_Session_Id(sessionId);
+    }
+
 
     private PollResponse changePollStatus(
             Long pollId,

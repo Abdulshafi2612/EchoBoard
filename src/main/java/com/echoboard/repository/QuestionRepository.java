@@ -18,5 +18,7 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     Optional<Question> findByIdAndSession_IdAndParticipant_Id(Long id, Long sessionId, Long participantId);
 
+    long countBySession_IdAndStatus(Long sessionId, QuestionStatus status);
+
 
 }

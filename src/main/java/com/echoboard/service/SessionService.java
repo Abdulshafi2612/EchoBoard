@@ -28,4 +28,6 @@ public interface SessionService {
     SessionResponse archiveSession(Long id);
 
     void deleteSession(Long id);
+
+    Session getOwnedSessionOrThrow(Long sessionId);
 }

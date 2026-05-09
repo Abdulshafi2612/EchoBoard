@@ -235,6 +235,17 @@ public class SessionServiceImpl implements SessionService {
 
         sessionRepository.delete(session);
     }
+    @Override
+    public Session getOwnedSessionOrThrow(Long sessionId) {
+        User owner = currentUserService.getCurrentUser();
+
+        return sessionRepository.findByIdAndOwner(sessionId, owner)
+                .orElseThrow(() -> new AppException(
+                        RESOURCE_NOT_FOUND,
+                        NOT_FOUND,
+                        "Session not found"
+                ));
+    }
 
     private String generateUniqueAccessCode() {
         String accessCode = AccessCodeGenerator.generateAccessCode();
@@ -244,14 +255,4 @@ public class SessionServiceImpl implements SessionService {
         return accessCode;
     }
 
-    private Session getOwnedSessionOrThrow(Long id) {
-        User owner = currentUserService.getCurrentUser();
-
-        return sessionRepository.findByIdAndOwner(id, owner)
-                .orElseThrow(() -> new AppException(
-                        RESOURCE_NOT_FOUND,
-                        NOT_FOUND,
-                        "Session not found"
-                ));
-    }
 }

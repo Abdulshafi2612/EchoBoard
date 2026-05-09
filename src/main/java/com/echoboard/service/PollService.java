@@ -15,4 +15,8 @@ public interface PollService {
 
     void deletePoll(Long pollId, Long sessionId);
 
+    long getNumberOfTotalPollsBySessionId(Long sessionId);
+
+    long getNumberOfTotalVotesBySessionId(Long sessionId);
+
 }

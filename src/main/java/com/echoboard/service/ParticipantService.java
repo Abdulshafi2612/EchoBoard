@@ -10,4 +10,5 @@ public interface ParticipantService {
 
     Participant getParticipantById(Long participantId);
 
+    long getNumberOfTotalParticipantsBySessionId(Long sessionId);
 }

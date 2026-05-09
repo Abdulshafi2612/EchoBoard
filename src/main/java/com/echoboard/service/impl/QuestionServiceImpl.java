@@ -241,6 +241,11 @@ public class QuestionServiceImpl implements QuestionService {
         broadcastQuestionEventToPublicTopic(savedQuestion, UPDATED);
     }
 
+    @Override
+    public long getNumberOfQuestionsBySessionIdAndStatus(Long sessionId, QuestionStatus status) {
+        return questionRepository.countBySession_IdAndStatus(sessionId, status);
+    }
+
 
     private Question getParticipantQuestionOrThrow(Long sessionId, Long questionId, Long participantId) {
         return questionRepository
