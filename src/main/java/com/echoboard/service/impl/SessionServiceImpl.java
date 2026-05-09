@@ -14,6 +14,7 @@ import com.echoboard.mapper.SessionMapper;
 import com.echoboard.rabbitmq.RabbitMQPublisher;
 import com.echoboard.repository.SessionRepository;
 import com.echoboard.service.CurrentUserService;
+import com.echoboard.service.PollService;
 import com.echoboard.service.SessionService;
 import com.echoboard.util.AccessCodeGenerator;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class SessionServiceImpl implements SessionService {
     private final SessionMapper sessionMapper;
     private final CurrentUserService currentUserService;
     private final RabbitMQPublisher rabbitMQPublisher;
+    private final PollService pollService;
 
 
     @Override
@@ -180,6 +182,8 @@ public class SessionServiceImpl implements SessionService {
         session.setEndedAt(LocalDateTime.now());
         session.setStatus(ENDED);
         Session endedSession = sessionRepository.save(session);
+
+        pollService.syncPollCountersForSession(endedSession.getId());
 
         SessionEndedEvent sessionEndedEvent = SessionEndedEvent
                 .builder()

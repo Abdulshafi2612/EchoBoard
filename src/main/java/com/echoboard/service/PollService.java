@@ -23,4 +23,6 @@ public interface PollService {
     long getNumberOfTotalVotesBySessionId(Long sessionId);
 
     List<PollAnalyticsResponse> getPollAnalyticsBySessionId(Long sessionId);
+
+    void syncPollCountersForSession(Long sessionId);
 }
