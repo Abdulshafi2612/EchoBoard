@@ -42,11 +42,12 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Local Swagger UI | `http://localhost:8080/swagger-ui.html` | Ready |
 | Local OpenAPI JSON | `http://localhost:8080/v3/api-docs` | Ready |
 | Actuator Health | `http://localhost:8080/actuator/health` | Ready |
-| RabbitMQ Dashboard | `http://localhost:15672` | Local only |
+| RabbitMQ Dashboard | `http://localhost:25673` | Ready with Docker Compose |
 | Production API | `TODO` | Upcoming |
-| Docker Compose | `TODO` | Planned |
+| Docker Compose | `docker compose up -d --build` | Ready |
+| GitHub Actions CI | `.github/workflows/ci.yml` | Ready |
 
-> Production deployment, Docker Compose, CI, and full observability are planned roadmap items, not completed features in the current snapshot. Redis is implemented for rate limiting, access-code caching, presence tracking, and live poll counters with scheduled PostgreSQL synchronization. RabbitMQ is implemented for asynchronous session-created event handling and session-ended analytics snapshot generation with an analytics DLQ, while real email delivery, retries with backoff, DLQ reprocessing, and the transactional outbox pattern remain future improvements. Scheduled jobs are implemented for refresh token cleanup, long-running session auto-ending, old ended session archival, and Redis poll counter synchronization.
+> Production deployment and deeper observability are planned roadmap items, not completed features in the current snapshot. Docker Compose is implemented for the full local stack: Spring Boot API, PostgreSQL, Redis, and RabbitMQ. PostgreSQL uses a named Docker volume for local persistence, and all Compose services include health checks. GitHub Actions CI is implemented to run tests, package the application, and verify Docker image builds. Redis is implemented for rate limiting, access-code caching, presence tracking, and live poll counters with scheduled PostgreSQL synchronization. RabbitMQ is implemented for asynchronous session-created event handling and session-ended analytics snapshot generation with an analytics DLQ, while real email delivery, retries with backoff, DLQ reprocessing, and the transactional outbox pattern remain future improvements. Scheduled jobs are implemented for refresh token cleanup, long-running session auto-ending, old ended session archival, and Redis poll counter synchronization.
 
 ---
 
@@ -76,6 +77,8 @@ EchoBoard is currently documented as a local backend project. No production depl
 - [Error Handling](#-error-handling)
 - [Testing](#-testing)
 - [How to Run Locally](#-how-to-run-locally)
+- [Docker Compose](#-docker-compose)
+- [CI Pipeline](#-ci-pipeline)
 - [Configuration](#-configuration)
 - [Database Setup Notes](#-database-setup-notes)
 - [Key Design Decisions](#-key-design-decisions)
@@ -190,7 +193,6 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Published polls can be closed by the owner
 - Only draft polls can be deleted
 
-
 ### 📈 Analytics, Reports, and CSV Export
 
 - Session owners can retrieve a session analytics summary
@@ -253,7 +255,6 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Final poll close synchronization persists the latest Redis counts before a poll is closed
 - Redis key design is documented in the README
 
-
 ### 🐇 RabbitMQ Async Processing
 
 - RabbitMQ is integrated through Spring AMQP
@@ -284,7 +285,6 @@ EchoBoard is currently documented as a local backend project. No production depl
 - Redis live poll counters are synchronized back to PostgreSQL on a schedule
 - Poll close flow performs a final counter sync so closed poll results are persisted
 - Auto-end by custom presenter-selected end time is deferred until a dedicated scheduled-end field exists
-
 
 ### 🛡️ Error Handling
 
@@ -333,11 +333,13 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Redis | ✅ Implemented | Rate limiting, access-code cache, presence tracking, live poll counters, scheduled counter sync |
 | RabbitMQ | ✅ Implemented | Async session-created mock email flow, session-ended analytics snapshot generation, JSON conversion, and analytics DLQ |
 | Scheduled jobs | ✅ Implemented | Refresh token cleanup, 24-hour auto-end for live sessions, old ended session archival, Redis poll counter sync |
-| Docker Compose | 🟡 Planned | Redis and RabbitMQ are currently run locally through Docker; full app compose is planned |
+| Docker Compose | ✅ Implemented | Full local stack for app, PostgreSQL, Redis, and RabbitMQ with health checks and PostgreSQL volume |
 | Analytics / CSV export | ✅ Implemented | Session analytics summary, top questions, poll analytics, async snapshots, and questions CSV export |
 | Session logo upload | ✅ Implemented | Owner-only multipart upload with local storage and validation |
 | Question attachments | ✅ Implemented | Participant-owned attachment upload with metadata persistence and validation |
-| Integration tests | 🟡 Planned | Test dependencies exist; test classes were not included in the uploaded snapshot |
+| Focused unit tests | ✅ Implemented | Core service/security tests with reusable test factories |
+| Integration tests | 🟡 Planned | Testcontainers-based integration coverage remains a future improvement |
+| GitHub Actions CI | ✅ Implemented | Runs tests, packages the app, and verifies Docker image build |
 
 ---
 
@@ -363,6 +365,8 @@ EchoBoard is currently documented as a local backend project. No production depl
 | Cache / Rate Limiting / Presence Counters | Redis |
 | Async Processing | RabbitMQ, Spring AMQP |
 | Scheduling | Spring Scheduling |
+| Containerization | Docker, Docker Compose |
+| CI | GitHub Actions |
 
 ---
 
@@ -419,11 +423,27 @@ RefreshTokenCleanupJob, SessionAutoEndJob, SessionArchiveJob, PollCounterSyncJob
       |
       v
 PostgreSQL, Redis, RabbitMQ
+
+Local Container Stack
+Docker Compose
+      |
+      v
+Spring Boot API + PostgreSQL + Redis + RabbitMQ
+
+CI Pipeline
+GitHub Actions
+      |
+      v
+mvn test -> mvn package -> docker build
 ```
 
 ### Package Structure
 
 ```text
+.github/workflows  # GitHub Actions CI workflow
+Dockerfile         # Spring Boot API container image definition
+docker-compose.yml # Full local stack: app, PostgreSQL, Redis, RabbitMQ
+
 com.echoboard
 ├── config          # Security, WebSocket, Redis, RabbitMQ, and scheduling configuration
 ├── controller      # REST controllers and WebSocket message controllers
@@ -896,7 +916,6 @@ Scheduled job later syncs Redis counter snapshots to PostgreSQL
 
 ---
 
-
 ## 🐇 RabbitMQ Async Processing
 
 RabbitMQ is used for asynchronous background workflows that should not block the main REST request path. The current implementation focuses on infrastructure and mock processing flows. Real email delivery and full analytics generation are planned for later stages.
@@ -1086,7 +1105,6 @@ Poll close also performs a final sync for that poll so the persisted `vote_count
 Auto-ending sessions is currently based on a 24-hour maximum live duration using `startedAt`. Presenter-configurable scheduled end times are deferred until a dedicated field such as `scheduledEndAt` is introduced. Redis key cleanup and deeper presence reconciliation remain future improvements.
 
 ---
-
 
 ## 📡 WebSocket Topics and Events
 
@@ -1620,7 +1638,6 @@ Authorization: Bearer <participantToken>
 }
 ```
 
-
 ### Get Session Analytics
 
 ```http
@@ -1981,7 +1998,9 @@ mvnw.cmd test
 
 ### Current Testing Status
 
-No dedicated test classes were included in the uploaded project snapshot. The project is ready to add tests, but this README does not claim that a full test suite already exists.
+The project includes focused unit tests for core services and security behavior, supported by reusable entity and response factories in the test source tree. These tests are designed to protect important business rules without requiring a full external infrastructure stack.
+
+The default Spring Boot `contextLoads` smoke test was removed/disabled because the current test stage focuses on unit tests rather than full integration context startup. Broader integration tests with Testcontainers remain a future improvement.
 
 ### Recommended Test Coverage
 
@@ -2007,10 +2026,7 @@ No dedicated test classes were included in the uploaded project snapshot. The pr
 
 - Java 21+
 - Maven or Maven Wrapper
-- PostgreSQL 14+
-- Docker Desktop, used to run Redis and RabbitMQ locally
-- Redis running locally
-- RabbitMQ running locally
+- Docker Desktop
 - Git
 
 ### 1. Clone the Repository
@@ -2020,43 +2036,7 @@ git clone https://github.com/your-username/echoboard.git
 cd echoboard
 ```
 
-### 2. Create PostgreSQL Database
-
-```sql
-CREATE DATABASE echoboard;
-```
-
-### 3. Run Redis Locally
-
-```bash
-docker run --name echoboard-redis -p 6379:6379 -d redis:7-alpine
-```
-
-If port `6379` is unavailable, run Redis on another host port and update `REDIS_PORT` in `.env`.
-
-```bash
-docker run --name echoboard-redis -p 16379:6379 -d redis:7-alpine
-```
-
-### 4. Run RabbitMQ Locally
-
-```bash
-docker run --name echoboard-rabbitmq -p 5672:5672 -p 15672:15672 -d rabbitmq:3-management
-```
-
-RabbitMQ Management UI:
-
-```text
-http://localhost:15672
-```
-
-Default local credentials:
-
-```text
-guest / guest
-```
-
-### 5. Create Environment File
+### 2. Create Environment File
 
 Copy the example environment file:
 
@@ -2064,7 +2044,7 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
-Update values for your local PostgreSQL instance:
+Example local `.env` values:
 
 ```properties
 DB_HOST=localhost
@@ -2074,42 +2054,176 @@ DB_USERNAME=postgres
 DB_PASSWORD=your_password_here
 
 JWT_SECRET=replace-with-a-long-secret-key-at-least-32-characters
-JWT_ACCESS_TOKEN_EXPIRATION_MS=900000
+JWT_ACCESS_TOKEN_EXPIRATION_MS=43200000
 JWT_REFRESH_TOKEN_EXPIRATION_MS=604800000
 JWT_PARTICIPANT_TOKEN_EXPIRATION_MS=43200000
 
 REDIS_HOST=localhost
-REDIS_PORT=6379
+REDIS_PORT=16379
 
 RABBITMQ_HOST=localhost
-RABBITMQ_PORT=5672
+RABBITMQ_PORT=25672
+RABBITMQ_MANAGEMENT_PORT=25673
 RABBITMQ_USERNAME=guest
 RABBITMQ_PASSWORD=guest
 ```
 
-### 6. Run the Application
+> The non-default Redis and RabbitMQ host ports are used to avoid common Windows port conflicts. Inside Docker Compose, the API still talks to Redis on `redis:6379` and RabbitMQ on `rabbitmq:5672`.
+
+### 3. Build the Application JAR
 
 ```bash
-./mvnw spring-boot:run
+./mvnw clean package -DskipTests
 ```
 
 On Windows:
 
 ```bash
-mvnw.cmd spring-boot:run
+mvnw.cmd clean package -DskipTests
 ```
 
-### 7. Open Swagger
+### 4. Run the Full Docker Compose Stack
+
+```bash
+docker compose up -d --build
+```
+
+This starts:
+
+- Spring Boot API
+- PostgreSQL
+- Redis
+- RabbitMQ with management UI
+
+### 5. Verify the Containers
+
+```bash
+docker compose ps
+```
+
+Expected services:
+
+```text
+echoboard-api
+echoboard-postgres
+echoboard-redis
+echoboard-rabbitmq
+```
+
+The PostgreSQL, Redis, RabbitMQ, and API containers include health checks.
+
+### 6. Open Swagger
 
 ```text
 http://localhost:8080/swagger-ui.html
 ```
 
-### 8. Check Application Health
+### 7. Check Application Health
 
 ```text
 http://localhost:8080/actuator/health
 ```
+
+The health response should report the app, PostgreSQL, Redis, and RabbitMQ as `UP`.
+
+### 8. Open RabbitMQ Dashboard
+
+```text
+http://localhost:25673
+```
+
+Default local credentials:
+
+```text
+guest / guest
+```
+
+### 9. Stop the Stack
+
+```bash
+docker compose down
+```
+
+PostgreSQL data is persisted in the named Docker volume `echoboard_postgres_data`.
+
+To delete containers and the PostgreSQL volume, use:
+
+```bash
+docker compose down -v
+```
+
+> Be careful: `down -v` deletes the database volume and removes local development data.
+
+---
+
+## 🐳 Docker Compose
+
+EchoBoard includes a full Docker Compose setup for local development.
+
+### Services
+
+| Service | Container | Purpose | Host Port |
+|---|---|---|---|
+| `app` | `echoboard-api` | Spring Boot API | `8080` |
+| `postgres` | `echoboard-postgres` | PostgreSQL database | `${DB_PORT}` |
+| `redis` | `echoboard-redis` | Redis cache/counters/presence | `${REDIS_PORT}` |
+| `rabbitmq` | `echoboard-rabbitmq` | RabbitMQ broker and dashboard | `${RABBITMQ_PORT}`, `${RABBITMQ_MANAGEMENT_PORT}` |
+
+### Container Networking
+
+When running inside Docker Compose, the API does not use `localhost` to reach dependencies. It uses Compose service names:
+
+```properties
+DB_HOST=postgres
+REDIS_HOST=redis
+RABBITMQ_HOST=rabbitmq
+```
+
+This is because `localhost` inside a container refers to that same container, not another service.
+
+### Persistence
+
+PostgreSQL uses a named Docker volume:
+
+```text
+echoboard_postgres_data
+```
+
+This keeps local database data across normal container recreation.
+
+### Health Checks
+
+The Compose setup includes health checks for:
+
+- Spring Boot API through `/actuator/health`
+- PostgreSQL through `pg_isready`
+- Redis through `redis-cli ping`
+- RabbitMQ through `rabbitmq-diagnostics ping`
+
+---
+
+## 🔁 CI Pipeline
+
+GitHub Actions is configured in:
+
+```text
+.github/workflows/ci.yml
+```
+
+The CI workflow runs on pushes and pull requests to the main branches.
+
+### CI Steps
+
+| Step | Purpose |
+|---|---|
+| Checkout | Pull repository code into the GitHub runner |
+| Setup Java 21 | Use Temurin Java 21 |
+| Maven cache | Speed up dependency resolution |
+| Run tests | Execute focused unit tests with Maven |
+| Package app | Build the Spring Boot JAR |
+| Docker build | Verify the Docker image can be built |
+
+The workflow validates that the code compiles, tests pass, the application can be packaged, and the Dockerfile remains buildable.
 
 ---
 
@@ -2175,8 +2289,9 @@ app.jwt.participant-token-expiration-ms=${JWT_PARTICIPANT_TOKEN_EXPIRATION_MS}
 | `RABBITMQ_PORT` | RabbitMQ AMQP port |
 | `RABBITMQ_USERNAME` | RabbitMQ username |
 | `RABBITMQ_PASSWORD` | RabbitMQ password |
+| `RABBITMQ_MANAGEMENT_PORT` | RabbitMQ management dashboard host port used by Docker Compose |
 
-> Never commit real database passwords, JWT secrets, access tokens, refresh tokens, participant tokens, RabbitMQ credentials, Redis credentials, or production credentials.
+> Never commit real database passwords, JWT secrets, access tokens, refresh tokens, participant tokens, RabbitMQ credentials, Redis credentials, or production credentials. Use `.env.example` for safe placeholder values and keep real `.env` files out of version control.
 
 Uploaded local files are stored under the `uploads/` directory during development. In production, this should be replaced or backed by a managed storage solution such as S3-compatible object storage, and upload/download authorization should be reviewed carefully.
 
@@ -2239,6 +2354,8 @@ question_attachments
 | Async analytics snapshots | Generate final report totals after session end without blocking the REST request |
 | Local file storage service | Centralizes upload validation, safe filenames, and storage paths for session logos and question attachments |
 | Actuator included early | Provides a foundation for health checks and monitoring |
+| Docker Compose local stack | Makes the API and its PostgreSQL, Redis, and RabbitMQ dependencies reproducible with one command |
+| GitHub Actions CI | Automatically validates tests, packaging, and Docker image build on push or pull request |
 
 ---
 
@@ -2356,18 +2473,23 @@ The following screenshots are **UI mockups** representing the intended frontend 
   - cloud storage integration such as S3
   - virus scanning or deeper file content validation
 
-### Production Readiness Roadmap
+### Production Readiness Status
 
-- Dockerfile
-- Docker Compose for app + PostgreSQL + Redis + RabbitMQ
-- GitHub Actions CI pipeline
-- Integration tests with Testcontainers
-- WebSocket integration tests
-- Flyway or Liquibase migrations
-- Structured JSON logging
-- Better observability with metrics
-- Production profile with safer JPA settings
-- API versioning policy
+- Dockerfile is implemented for the Spring Boot API
+- Docker Compose is implemented for app + PostgreSQL + Redis + RabbitMQ
+- PostgreSQL data persistence is configured with a named Docker volume
+- Docker health checks are configured for the API, PostgreSQL, Redis, and RabbitMQ
+- GitHub Actions CI pipeline is implemented
+- CI runs tests, packages the application, and verifies Docker image build
+- Future production-readiness improvements:
+  - Integration tests with Testcontainers
+  - WebSocket integration tests
+  - Flyway or Liquibase migrations
+  - Structured JSON logging
+  - Better observability with metrics
+  - Production profile with safer JPA settings
+  - API versioning policy
+  - Production deployment
 
 ---
 
@@ -2404,7 +2526,13 @@ The following screenshots are **UI mockups** representing the intended frontend 
 - Syncing Redis poll counters before analytics snapshot generation to avoid stale reports
 - Implementing local multipart file uploads with safe UUID filenames
 - Validating uploaded files by presence, size, extension, and business ownership rules
-- Preparing a project roadmap for Docker, CI, and Testcontainers
+- Containerizing a Spring Boot API with Docker
+- Running a full backend stack with Docker Compose
+- Understanding Docker service names versus `localhost` inside containers
+- Persisting PostgreSQL data with Docker volumes
+- Adding Docker health checks for app and infrastructure services
+- Building a GitHub Actions CI pipeline for tests, packaging, and Docker image verification
+- Preparing a project roadmap for production-readiness improvements such as Testcontainers and deployment
 
 ---
 
@@ -2422,7 +2550,7 @@ The following screenshots are **UI mockups** representing the intended frontend 
 - A separate moderator entity/assignment workflow is not implemented yet; moderation is currently owner-only.
 - `SessionStatus.DRAFT` exists as an enum value, but new sessions are currently created as `SCHEDULED`.
 - Poll `DELETED` exists as an event enum, but draft poll deletion currently does not broadcast a public WebSocket delete event.
-- Docker Compose, CI, deeper observability, integration tests, poll-results CSV export, downloadable file serving, and production deployment are upcoming improvements.
+- Docker Compose and CI are implemented. Deeper observability, integration tests, poll-results CSV export, downloadable file serving, and production deployment remain future improvements.
 
 ---
 
